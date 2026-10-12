@@ -1,0 +1,37 @@
+.venv/
+.cache/
+.DS_Store
+__pycache__/
+.pytest_cache/
+data/
+outputs/
+test-results/
+.env*
+
+# 编辑器、Office 临时文件和运行日志
+.~*
+~$*
+*.log
+*.py[cod]
+
+# 音频、视频和收藏数据库只保存在本地
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.wav
+*.ogg
+*.opus
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-wal
+*.db-shm
