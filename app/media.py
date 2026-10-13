@@ -25,7 +25,7 @@ def canonical_url(value: str):
         raise ValueError('请粘贴 https://www.bilibili.com/video/BV… 视频链接，或 BV 号。')
     match = re.fullmatch(r'/video/(BV[0-9A-Za-z]{10})/?', parsed.path)
     if not match:
-        raise ValueError('第一版支持 B站单个 BV 视频链接；分 P 可在链接后加 ?p=2。')
+        raise ValueError('当前支持 B站单个 BV 视频链接；分 P 可在链接后加 ?p=2。')
     p = parse_qs(parsed.query).get('p', ['1'])[0]
     if not p.isdigit() or not 1 <= int(p) <= 1000:
         raise ValueError('分 P 编号应为 1–1000 的整数。')
@@ -60,8 +60,10 @@ def probe(path):
         raise MediaError('这个文件没有可用的音轨。')
     duration = float(data.get('format', {}).get('duration') or streams[0].get('duration') or 0)
     if not math.isfinite(duration) or duration <= 0 or duration > 14400:
-        raise MediaError('第一版支持时长在 0–4 小时之间的音视频。')
-    return dict(duration=duration, codec=streams[0]['codec_name'], tags=data.get('format', {}).get('tags', {}))
+        raise MediaError('当前支持时长在 0–4 小时之间的音视频。')
+    videos = [s for s in data.get('streams', []) if s.get('codec_type') == 'video' and not s.get('disposition', {}).get('attached_pic')]
+    return dict(duration=duration, codec=streams[0]['codec_name'], tags=data.get('format', {}).get('tags', {}),
+                video=videos[0] if videos else None)
 
 
 def clean_cover(source, target):
@@ -76,13 +78,16 @@ def clean_cover(source, target):
         raise MediaError('封面需要可读取的 JPG、PNG 或 WebP 图片（不超过 10 MB）。') from e
 
 
-def fetch_bilibili(url, directory, phase):
+def fetch_bilibili(url, directory, phase, keep_video=False):
+    url = canonical_url(url)
     if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
         raise MediaError('请先安装 FFmpeg，音频提取和导出需要它。')
-    phase('读取视频并提取音轨，长视频可能需要几分钟')
+    phase('保存现场视频与音轨，长视频可能需要几分钟' if keep_video else '读取视频并提取音轨，长视频可能需要几分钟')
     run([sys.executable, '-m', 'yt_dlp', '--no-playlist', '--no-warnings', '--no-progress', '--no-cache-dir',
          '--socket-timeout', '20', '--retries', '1', '--fragment-retries', '1', '--max-filesize', '500M',
-         '--match-filter', 'duration <= 14400', '-f', 'bestaudio', '--write-info-json',
+         '--match-filter', 'duration <= 14400', '-f',
+         'bestvideo[height<=720][vcodec^=avc]+bestaudio/bestvideo[height<=720]+bestaudio/best[height<=720]' if keep_video else 'bestaudio',
+         '--merge-output-format', 'mp4', '--write-info-json',
          '-o', str(directory / 'source.%(ext)s'), url], timeout=900)
     infos = list(directory.glob('source*.info.json'))
     if not infos:
@@ -113,6 +118,33 @@ def fetch_bilibili(url, directory, phase):
     for p in infos:
         p.unlink(missing_ok=True)  # Do not retain signed media URLs.
     return candidates[0], info, Path(cover) if cover else None
+
+
+def prepare_video(source, directory, phase):
+    """Create a browser-compatible full-length copy; never alter the source media."""
+    details = probe(source)
+    video = details['video']
+    if not video:
+        raise MediaError('源文件只有音频，没有现场画面。请导入带画面的视频文件。')
+    target = directory / f'live-{uuid.uuid4().hex[:12]}.mp4'
+    phase('准备本地现场画面，首次转换可能需要几分钟')
+    args = ['ffmpeg', '-v', 'error', '-nostdin', '-n', '-protocol_whitelist', 'file,pipe', '-i', str(source),
+            '-map', f"0:{video['index']}", '-map', '0:a:0', '-map_metadata', '-1']
+    if video['codec_name'] == 'h264' and video.get('pix_fmt') == 'yuv420p':
+        args += ['-c:v', 'copy']
+    else:
+        args += ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p',
+                 '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2']
+    args += ['-c:a', 'copy'] if details['codec'] == 'aac' else ['-c:a', 'aac', '-b:a', '192k']
+    try:
+        run(args + ['-movflags', '+faststart', str(target)], timeout=1800)
+        result = probe(target)
+        if not result['video'] or abs(result['duration'] - details['duration']) > .5:
+            raise MediaError('视频转换后的时长不一致，请重试。')
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+    return target
 
 
 def render(source, directory, metadata, source_duration, codec, phase):

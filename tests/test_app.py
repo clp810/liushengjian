@@ -127,3 +127,97 @@ def test_interrupted_task_recovery(tmp_path):
         assert client.get('/api/tracks').json()[0]['status']=='error'
         assert client.get('/api/jobs').json()[0]['status']=='error'
         assert client.get('/api/jobs').json()[0]['error']
+
+
+@pytest.fixture(scope='session')
+def video_sample(tmp_path_factory):
+    path = tmp_path_factory.mktemp('video') / 'live.mkv'
+    # VP9/Opus exercises browser conversion, not only the MP4 copy path.
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=12:duration=4',
+                    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=4', '-c:v', 'libvpx-vp9',
+                    '-c:a', 'libopus', '-shortest', str(path)], check=True)
+    return path
+
+
+def test_video_import_trim_range_and_restart(client, video_sample):
+    response = client.post('/api/imports/file', data={'keep_video': 'true', 'cover_style': 'dusk'},
+                           files={'file': ('live.mkv', video_sample.read_bytes(), 'video/x-matroska')})
+    assert response.status_code == 202
+    tid = response.json()['track_id']
+    assert wait_for_job(client, response.json()['job_id'])['status'] == 'done'
+    track = client.get('/api/tracks').json()[0]
+    assert track['has_video'] and track['cover_style'] == 'dusk'
+    store = client.app.state.store
+    saved = store.get('tracks', tid)
+    video = store.path(saved['video_path'])
+    source = store.path(saved['source_path'])
+    assert source.read_bytes() == video_sample.read_bytes()
+    info = probe(video)
+    assert info['video']['codec_name'] == 'h264' and info['codec'] == 'aac'
+    subprocess.run(['ffmpeg', '-v', 'error', '-xerror', '-i', str(video), '-f', 'null', '-'], check=True)
+    before = hashlib.sha256(video.read_bytes()).hexdigest()
+    ranged = client.get(f'/api/tracks/{tid}/video', headers={'Range': 'bytes=20-119'})
+    assert ranged.status_code == 206 and len(ranged.content) == 100
+    edit = client.put(f'/api/tracks/{tid}', json={'title': '片段现场', 'trim_start': 1, 'trim_end': 3})
+    assert wait_for_job(client, edit.json()['id'])['status'] == 'done'
+    updated = client.get('/api/tracks').json()[0]
+    assert updated['duration'] == 2 and updated['trim_start'] == 1 and updated['has_video']
+    assert hashlib.sha256(video.read_bytes()).hexdigest() == before
+    assert client.post(f'/api/tracks/{tid}/video').status_code == 409
+    with TestClient(create_app(store.root, seed=False)) as restarted:
+        result = restarted.get('/api/tracks').json()[0]
+        assert result['has_video'] and result['cover_style'] == 'dusk' and result['trim_start'] == 1
+        assert restarted.get(f'/api/tracks/{tid}/video').content == video.read_bytes()
+
+
+def test_prepare_video_for_existing_local_collection(client, video_sample, monkeypatch):
+    response = client.post('/api/imports/file', files={'file': ('live.mkv', video_sample.read_bytes())}).json()
+    assert wait_for_job(client, response['job_id'])['status'] == 'done'
+    tid = response['track_id']
+    assert not client.get('/api/tracks').json()[0]['has_video']
+    store = client.app.state.store
+    before = store.get('tracks', tid)
+    from app import media
+    original = media.prepare_video
+    def fail(*args):
+        raise media.MediaError('视频转换测试失败')
+    monkeypatch.setattr(media, 'prepare_video', fail)
+    job = client.post(f'/api/tracks/{tid}/video').json()
+    assert wait_for_job(client, job['id'])['status'] == 'error'
+    assert client.get('/api/tracks').json()[0]['has_audio']
+    assert store.get('tracks', tid)['revision'] == before['revision']
+    monkeypatch.setattr(media, 'prepare_video', original)
+    retry = client.post(f'/api/tracks/{tid}/retry').json()
+    assert retry['kind'] == 'video' and wait_for_job(client, retry['id'])['status'] == 'done'
+    assert client.get('/api/tracks').json()[0]['has_video']
+    assert store.get('tracks', tid)['m4a_path'] == before['m4a_path']
+
+
+def test_pure_audio_and_cover_choices_preserve_originals(client, audio_sample):
+    response = client.post('/api/imports/file', data={'keep_video': 'true', 'cover_style': 'groove'},
+                           files={'file': ('audio.m4a', audio_sample.read_bytes())}).json()
+    assert wait_for_job(client, response['job_id'])['status'] == 'done'
+    tid = response['track_id']
+    track = client.get('/api/tracks').json()[0]
+    assert not track['has_video'] and not track['can_prepare_video'] and not track['keep_video']
+    assert client.get(f'/api/tracks/{tid}/video').status_code == 404
+    assert client.put(f'/api/tracks/{tid}/cover-choice', json={'style': 'uploaded'}).status_code == 422
+    # Simulate a v0.1 record without the new cover fields.
+    store = client.app.state.store
+    original = store.path(f'tracks/{tid}/original.jpg')
+    Image.new('RGB', (40, 40), 'red').save(original)
+    legacy = store.get('tracks', tid)
+    for field in ('cover_style', 'original_cover_path', 'uploaded_cover_path'):
+        legacy.pop(field, None)
+    legacy['cover_path'] = store.relative(original)
+    store.put('tracks', legacy)
+    assert client.get('/api/tracks').json()[0]['has_original_cover']
+    picture = io.BytesIO(); Image.new('RGB', (30, 30), 'blue').save(picture, 'PNG')
+    client.post(f'/api/tracks/{tid}/cover', files={'file': ('cover.png', picture.getvalue())})
+    uploaded = client.get(f'/api/tracks/{tid}/cover?kind=uploaded').content
+    for style in ('groove', 'collage', 'type', 'dusk', 'original', 'uploaded'):
+        result = client.put(f'/api/tracks/{tid}/cover-choice', json={'style': style})
+        assert result.status_code == 200 and result.json()['cover_style'] == style
+        assert client.get(f'/api/tracks/{tid}/cover?kind=original').content == original.read_bytes()
+        assert client.get(f'/api/tracks/{tid}/cover?kind=uploaded').content == uploaded
+    assert client.put(f'/api/tracks/{tid}/cover-choice', json={'style': '../bad'}).status_code == 422

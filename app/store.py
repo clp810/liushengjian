@@ -66,6 +66,7 @@ class Store:
                    preview_path='', source_duration=0, duration=0, trim_start=0, trim_end=None, cover_path='',
                    m4a_path='', mp3_path='', revision='', status='processing', error='', favorite=False,
                    archived=False, created_at=now(), updated_at=now())
+        doc.update(keep_video=False, video_path='', cover_style='original', original_cover_path='', uploaded_cover_path='')
         doc.update(values)
         return self.put('tracks', doc)
 

@@ -26,7 +26,7 @@ def log(text):
 
 
 def wait_ready(tid, duration=None):
-    for _ in range(600):
+    for _ in range(1000):
         tracks = httpx.get(BASE + '/api/tracks').json()
         t = next(t for t in tracks if t['id'] == tid)
         if t['status'] == 'error':
@@ -43,6 +43,51 @@ def wait_audio(page, selector, minimum):
             return
         time.sleep(.1)
     raise AssertionError(f'Audio did not advance: {selector}')
+
+
+def verify_video(page, tid):
+    page.locator('[data-action=room]').click()
+    page.evaluate('document.querySelector("#live-video").muted=true')
+    # Pause, seek relative to the audio clip and preserve the paused state.
+    page.evaluate('audio.pause(); audio.currentTime=2')
+    page.locator('#mode-video').click()
+    page.wait_for_function('() => document.querySelector("#mode-video").getAttribute("aria-pressed")==="true"')
+    page.wait_for_function('() => Math.abs(document.querySelector("#live-video").currentTime-12)<.25')
+    assert page.locator('#live-video').evaluate('(v)=>v.paused')
+    assert page.locator('#audio').evaluate('(a)=>a.paused')
+    page.locator('#room-play').click()
+    wait_audio(page, '#live-video', 12.3)
+    assert page.locator('#audio').evaluate('(a)=>a.paused')
+    position=page.locator('#live-video').evaluate('(v)=>v.currentTime-10')
+    page.locator('#mode-audio').click()
+    page.wait_for_function('() => !document.querySelector("#audio").paused')
+    assert abs(page.locator('#audio').evaluate('(a)=>a.currentTime')-position)<1
+    assert page.locator('#live-video').evaluate('(v)=>v.paused')
+    # The room's controls remain available in true fullscreen.
+    page.locator('#room-fullscreen').click()
+    page.wait_for_function('() => document.fullscreenElement?.id==="room-view"')
+    assert page.locator('#room-seek').is_visible() and page.locator('#room-volume').is_visible()
+    page.locator('#room-volume').fill('0.35')
+    assert page.locator('#audio').evaluate('(a)=>a.volume')==.35
+    assert page.locator('#live-video').evaluate('(a)=>a.volume')==.35
+    page.locator('#room-fullscreen').click()
+    page.wait_for_function('() => !document.fullscreenElement')
+    page.locator('#mode-video').click()
+    page.wait_for_function('() => !document.querySelector("#live-video").paused')
+    page.screenshot(path=str(RESULTS/'live-video.png'),full_page=True)
+    # The full source video must stop/loop at the selected audio clip boundary.
+    page.locator('#room-repeat').click()
+    page.evaluate('audio.currentTime=8.2')
+    page.wait_for_function('() => document.querySelector("#live-video").currentTime<11 && !document.querySelector("#live-video").paused')
+    page.locator('#room-repeat').click()
+    page.evaluate('audio.currentTime=8.2')
+    page.wait_for_function('() => document.querySelector("#live-video").paused')
+    assert 18.4 <= page.locator('#live-video').evaluate('(v)=>v.currentTime') < 19
+    assert page.locator('#audio').evaluate('(a)=>a.paused')
+    ranged=httpx.get(BASE+f'/api/tracks/{tid}/video',headers={'Range':'bytes=0-99'})
+    assert ranged.status_code==206 and len(ranged.content)==100
+    page.locator('#room-back').click()
+    log('PASS: Video playback, clip-relative switch/seek, pause, loop, clip end, fullscreen controls and Range')
 
 
 def run():
@@ -66,12 +111,15 @@ def run():
                     page.locator('#empty-add').wait_for(state='visible')
                     log('PASS: Empty library renders without sample fixtures')
                     page.locator('#add-button').click()
+                    page.locator('#import-content').select_option('video')
+                    page.locator('#import-cover').select_option('groove')
                     page.locator('#video-url').fill('https://www.bilibili.com/video/BV1CFG66UELP/')
                     page.locator('#url-form button[type=submit]').click()
                     page.locator('.track-card').wait_for(timeout=15000)
                     tid=httpx.get(BASE+'/api/tracks').json()[0]['id']
-                    log('RUN: Real Bilibili extraction and audio processing')
+                    log('RUN: Real Bilibili video download and audio processing')
                     track=wait_ready(tid)
+                    assert track['has_video'] and track['cover_style']=='groove'
                     page.locator('.card-play').wait_for(timeout=15000,state='attached')
                     page.screenshot(path=str(RESULTS/'bilibili-import.png'),full_page=True)
                     log(f"PASS: Bilibili → library, duration {track['duration']:.2f}s")
@@ -111,11 +159,18 @@ def run():
                     response=httpx.get(BASE+f'/api/tracks/{tid}/audio',headers={'Range':'bytes=0-99'})
                     assert response.status_code==206 and len(response.content)==100
                     page.locator('#export-dialog .close-dialog').click()
+                    verify_video(page, tid)
                     log('PASS: UI trim preview, metadata edit, MP3 download and byte-range playback')
                     page.locator('[data-action=edit]').click()
                     art=tmp/'cover.png';Image.new('RGB',(400,400),'#586c51').save(art)
                     page.locator('#cover-file').set_input_files(art)
                     page.locator('#edit-cover img').wait_for()
+                    for style in ('collage','type','dusk','original','uploaded'):
+                        page.locator(f'[data-cover={style}]').click()
+                        page.wait_for_function('(style)=>document.querySelector(`[data-cover="${style}"]`).getAttribute("aria-pressed")==="true"', arg=style)
+                    assert httpx.get(BASE+f'/api/tracks/{tid}/cover?kind=uploaded').status_code==200
+                    page.locator('[data-cover=dusk]').click()
+                    page.wait_for_function('() => document.querySelector("[data-cover=dusk]").getAttribute("aria-pressed")==="true"')
                     page.locator('#edit-dialog .dialog-heading .close-dialog').click()
                     page.locator('[data-action=archive]').click()
                     page.locator('[data-view=archive]').click()
@@ -155,6 +210,17 @@ def run():
                     page.set_viewport_size({'width':390,'height':844})
                     page.screenshot(path=str(RESULTS/'mobile-library.png'),full_page=True)
                     assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
+                    page.locator(f'[data-id="{tid}"] [data-action=room]').click()
+                    page.locator('#mode-video').click()
+                    page.wait_for_function('() => document.querySelector("#mode-video").getAttribute("aria-pressed")==="true"')
+                    assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
+                    page.screenshot(path=str(RESULTS/'mobile-video.png'),full_page=True)
+                    page.locator('#room-play').click()
+                    page.locator('#room-back').click()
+                    page.locator(f'[data-id="{tid}"] [data-action=edit]').click()
+                    page.screenshot(path=str(RESULTS/'mobile-covers.png'),full_page=True)
+                    assert page.locator('[data-cover=dusk]').is_visible()
+                    page.locator('#edit-dialog .dialog-heading .close-dialog').click()
                     page.locator('#add-button').click()
                     page.screenshot(path=str(RESULTS/'mobile-import.png'),full_page=True)
                     assert page.locator('#video-url').is_visible()
@@ -170,9 +236,10 @@ def run():
                 saved=httpx.get(BASE+'/api/tracks').json()
                 assert len(saved)==2
                 sample=next(t for t in saved if t['id']==tid)
+                assert sample['has_video'] and sample['cover_style']=='dusk'
                 assert sample['favorite'] and sample['has_cover'] and sample['duration']==8.5 and not sample['archived']
                 log('PASS: Restart persistence, mobile layout, room theme and zero browser errors')
-                (RESULTS/'browser-report.json').write_text(json.dumps({'bilibili_import':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_restore':True,'search_and_dedup':True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
+                (RESULTS/'browser-report.json').write_text(json.dumps({'bilibili_import':True,'local_video_range':True,'audio_video_switch_and_clip':True,'video_loop_and_end':True,'fullscreen':True,'preset_covers':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_restore':True,'search_and_dedup':True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
             finally:
                 process.terminate()
                 try:process.wait(timeout=15)
