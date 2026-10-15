@@ -1,6 +1,7 @@
 """Real local browser → API → Bilibili/FFmpeg → SQLite → export acceptance test.
 Runs against disposable storage and never changes the user's library.
 """
+import argparse
 import json
 import os
 import subprocess
@@ -103,12 +104,16 @@ def verify_video(page, tid):
     log('PASS: Video playback, clip-relative switch/seek, pause, loop, clip end, fullscreen controls and Range')
 
 
-def run():
+def run(local=False):
     errors=[]
+    report_path=RESULTS/('browser-local-report.json' if local else 'browser-report.json')
     with tempfile.TemporaryDirectory(prefix='lsj-qa-') as tmp:
         tmp=Path(tmp)
+        if local:
+            fixture=tmp/'fixture.mp4'
+            subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','testsrc2=size=640x360:rate=24:duration=25','-f','lavfi','-i','sine=frequency=440:duration=25','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-shortest',str(fixture)],check=True)
         env={**os.environ,'LIUSHENGJIAN_DATA':str(tmp/'data'),'LIUSHENGJIAN_SEED':'0'}
-        with (RESULTS/'server-test.log').open('w') as serverlog:
+        with (RESULTS/('server-local-test.log' if local else 'server-test.log')).open('w') as serverlog:
             process=subprocess.Popen([sys.executable,'-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8766','--log-level','warning'],cwd=ROOT,env=env,stdout=serverlog,stderr=serverlog)
             try:
                 for _ in range(80):
@@ -127,16 +132,21 @@ def run():
                     page.locator('#add-button').click()
                     page.locator('#import-content').select_option('video')
                     page.locator('#import-cover').select_option('groove')
-                    page.locator('#video-url').fill('https://www.bilibili.com/video/BV1CFG66UELP/')
-                    page.locator('#url-form button[type=submit]').click()
+                    if local:
+                        page.locator('[data-import=file]').click()
+                        page.locator('#media-file').set_input_files(fixture)
+                        page.locator('#file-form button[type=submit]').click()
+                    else:
+                        page.locator('#video-url').fill('https://www.bilibili.com/video/BV1CFG66UELP/')
+                        page.locator('#url-form button[type=submit]').click()
                     page.locator('.track-card').wait_for(timeout=15000)
                     tid=httpx.get(BASE+'/api/tracks').json()[0]['id']
-                    log('RUN: Real Bilibili video download and audio processing')
+                    log('RUN: Synthetic local video processing' if local else 'RUN: Real Bilibili video download and audio processing')
                     track=wait_ready(tid)
                     assert track['has_video'] and track['cover_style']=='groove'
                     page.locator('.card-play').wait_for(timeout=15000,state='attached')
-                    page.screenshot(path=str(RESULTS/'bilibili-import.png'),full_page=True)
-                    log(f"PASS: Bilibili → library, duration {track['duration']:.2f}s")
+                    page.screenshot(path=str(RESULTS/('local-video-import.png' if local else 'bilibili-import.png')),full_page=True)
+                    log(f"PASS: {'Local video' if local else 'Bilibili'} → library, duration {track['duration']:.2f}s")
                     page.evaluate('document.querySelector("#audio").muted=true')
                     page.locator('.artwork').hover()
                     page.locator('.card-play').click()
@@ -197,26 +207,30 @@ def run():
                     page.locator('#empty-state').wait_for(state='visible')
                     assert page.locator('.track-card').count()==0
                     page.locator('#search').fill('')
-                    page.locator('#add-button').click()
-                    page.locator('#video-url').fill('BV1CFG66UELP')
-                    page.locator('#url-form button[type=submit]').click()
-                    page.locator('#import-dialog').wait_for(state='hidden')
-                    assert len(httpx.get(BASE+'/api/tracks').json())==1
-                    log('PASS: Search and Bilibili duplicate detection')
+                    if not local:
+                        page.locator('#add-button').click()
+                        page.locator('#video-url').fill('BV1CFG66UELP')
+                        page.locator('#url-form button[type=submit]').click()
+                        page.locator('#import-dialog').wait_for(state='hidden')
+                        assert len(httpx.get(BASE+'/api/tracks').json())==1
+                        log('PASS: Search and Bilibili duplicate detection')
                     page.locator('#add-button').click()
                     page.locator('[data-import=file]').click()
                     page.locator('#media-file').set_input_files(downloaded)
                     page.locator('#file-form button[type=submit]').click()
                     page.locator('#import-dialog').wait_for(state='hidden')
                     newtracks=httpx.get(BASE+'/api/tracks').json()
-                    local=next(t for t in newtracks if t['id']!=tid)
-                    local=wait_ready(local['id'])
-                    assert local['artist']=='宇多田光'
+                    local_track=next(t for t in newtracks if t['id']!=tid)
+                    local_track=wait_ready(local_track['id'])
+                    assert local_track['artist']=='宇多田光'
                     log('PASS: Local file import retains embedded artist metadata')
                     page.locator('[data-view=room]').click()
+                    page.locator('#mode-audio').click()
                     page.locator('[data-theme=night].theme').click()
                     assert page.locator('.listening-room').get_attribute('data-theme')=='night'
                     page.screenshot(path=str(RESULTS/'listening-room.png'),full_page=True)
+                    page.locator('#mode-video').click()
+                    page.wait_for_function('() => audio.mode==="video"')
                     page.reload(wait_until='networkidle')
                     page.wait_for_function('() => document.querySelector("#mode-video").getAttribute("aria-pressed")==="true"')
                     assert page.locator('#live-video').evaluate('(v)=>v.paused')
@@ -256,7 +270,10 @@ def run():
                 assert sample['has_video'] and sample['cover_style']=='dusk'
                 assert sample['favorite'] and sample['has_cover'] and sample['duration']==8.5 and not sample['archived']
                 log('PASS: Restart persistence, mobile layout, room theme and zero browser errors')
-                (RESULTS/'browser-report.json').write_text(json.dumps({'bilibili_import':True,'local_video_range':True,'audio_video_switch_and_clip':True,'video_loop_and_end':True,'fullscreen':True,'preset_covers':True,'paused_video_resume':True,'paused_seek_end_no_autoplay':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_restore':True,'search_and_dedup':True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
+                report_path.write_text(json.dumps({'bilibili_import':None if local else True,'local_fixture':local,'local_video_range':True,'audio_video_switch_and_clip':True,'video_loop_and_end':True,'fullscreen':True,'preset_covers':True,'paused_video_resume':True,'paused_seek_end_no_autoplay':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_restore':True,'search':True,'bilibili_dedup':None if local else True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
+            except Exception as error:
+                report_path.write_text(json.dumps({'passed':False,'local_fixture':local,'error':str(error)},ensure_ascii=False,indent=2))
+                raise
             finally:
                 process.terminate()
                 try:process.wait(timeout=15)
@@ -264,4 +281,6 @@ def run():
 
 
 if __name__=='__main__':
-    run()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--local',action='store_true',help='Use generated video; skip Bilibili import and dedup checks explicitly')
+    run(local=parser.parse_args().local)

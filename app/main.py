@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
 
-from . import media
+from . import media, lyrics
 from .store import Store
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -33,6 +33,13 @@ class ImportRequest(BaseModel):
 
 class CoverChoice(BaseModel):
     style: Literal['original', 'uploaded', 'groove', 'collage', 'type', 'dusk']
+
+
+class LyricSettings(BaseModel):
+    model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
+    offset: float = Field(default=0, ge=-600, le=600)
+    clock: Literal['source', 'clip'] = 'source'
+    mood: Literal['auto', 'calm', 'bright', 'intense'] = 'auto'
 
 
 class EditRequest(BaseModel):
@@ -143,7 +150,9 @@ def create_app(data_dir=None, seed=True):
         return track
 
     def public_track(track):
-        result = {k: v for k, v in track.items() if not k.endswith('_path')}
+        result = {k: v for k, v in track.items() if not k.endswith('_path') and k != 'lyrics'}
+        result['has_lyrics'] = bool(track.get('lyrics'))
+        result['lyrics_revision'] = track.get('lyrics_revision', '')
         result['has_cover'] = bool(track['cover_path'])
         result['has_audio'] = bool(track['m4a_path'])
         result['has_source'] = bool(track['source_path'])
@@ -182,7 +191,7 @@ def create_app(data_dir=None, seed=True):
         yield
         pool.shutdown(wait=True, cancel_futures=False)
 
-    app = FastAPI(title='留声间', version='0.3.0', lifespan=lifespan)
+    app = FastAPI(title='留声间', version='0.4.0', lifespan=lifespan)
     app.state.store = store
 
     @app.middleware('http')
@@ -206,7 +215,7 @@ def create_app(data_dir=None, seed=True):
 
     @app.get('/api/status')
     def status():
-        return dict(name='留声间', version='0.3.0', ffmpeg=bool(shutil.which('ffmpeg')),
+        return dict(name='留声间', version='0.4.0', ffmpeg=bool(shutil.which('ffmpeg')),
                     ffprobe=bool(shutil.which('ffprobe')), storage=str(store.root),
                     cloud_mode='manual', max_upload_mb=512)
 
@@ -311,6 +320,43 @@ def create_app(data_dir=None, seed=True):
             if store.get('tracks', track_id)['status'] == 'processing':
                 raise HTTPException(409, '正在处理这首音频，请完成后再收起。')
         return public_track(store.patch('tracks', track_id, **body.model_dump(exclude_none=True)))
+
+    def lyric_document(track):
+        return {**track.get('lyrics', dict(lines=[], timed_words=False, file_offset=0)),
+                'settings': track.get('lyric_settings', LyricSettings().model_dump()),
+                'filename': track.get('lyrics_filename', '')}
+
+    @app.get('/api/tracks/{track_id}/lyrics')
+    def get_lyrics(track_id: str):
+        return lyric_document(require_track(track_id))
+
+    @app.post('/api/tracks/{track_id}/lyrics')
+    async def import_lyrics(track_id: str, file: UploadFile):
+        require_track(track_id, ready=True)
+        filename = Path((file.filename or '').replace('\\', '/')).name[:200]
+        data = await file.read(lyrics.MAX_BYTES + 1)
+        await file.close()
+        if not filename.lower().endswith('.lrc'):
+            raise HTTPException(422, '请选择 .lrc 歌词文件。')
+        if len(data) > lyrics.MAX_BYTES:
+            raise HTTPException(413, '歌词文件最大为 256 KB。')
+        try:
+            document = lyrics.parse_lrc(data)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+        revision = uuid.uuid4().hex
+        path = store.path(f'tracks/{track_id}/lyrics-{revision}.lrc')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        track = store.patch('tracks', track_id, lyrics=document, lyrics_path=store.relative(path),
+                            lyrics_revision=revision, lyrics_filename=filename)
+        return lyric_document(track)
+
+    @app.put('/api/tracks/{track_id}/lyrics/settings')
+    def lyric_settings(track_id: str, body: LyricSettings):
+        require_track(track_id)
+        return lyric_document(store.patch('tracks', track_id, lyric_settings=body.model_dump(),
+                                         lyrics_revision=uuid.uuid4().hex))
 
     @app.post('/api/tracks/{track_id}/cover')
     async def cover(track_id: str, file: UploadFile):

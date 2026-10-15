@@ -6,7 +6,8 @@
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/style.css">
 <link rel="stylesheet" href="/static/v02.css">
 <link rel="stylesheet" href="/static/space.css">
-<script src="/static/media-player.js" defer></script><script src="/static/app.js" defer></script><script src="/static/space.js" defer></script>
+<link rel="stylesheet" href="/static/room.css">
+<script src="/static/media-player.js" defer></script><script src="/static/app.js" defer></script><script src="/static/space.js" defer></script><script src="/static/room.js" defer></script>
 </head>
 <body data-wall="space">
 <div class="atmosphere" aria-hidden="true"><div class="ambient-light light-a"></div><div class="ambient-light light-b"></div><div class="space-floor"></div></div>
@@ -23,17 +24,48 @@
 </nav>
 <div class="side-note"><span class="little-star">✳</span><p>有些版本，<br>值得好好留下。</p><small>音乐与收藏记录保存在本机。</small></div>
 <button class="nav settings" id="help-button"><span>↗</span> 导入网易云指南</button>
-<div class="local-badge"><span></span> 本地空间 <small>v0.3</small></div>
+<div class="local-badge"><span></span> 本地空间 <small>v0.4</small></div>
 </aside>
 <main>
 <header class="topbar"><span id="breadcrumb">我的空间 <em>/</em> 全部收藏</span><div class="top-actions"><span id="environment-status" class="status-label">正在连接本地空间</span><button class="button primary" id="add-button">＋ 添加音乐</button></div></header>
 <section id="library-view">
-<div class="hero"><div><div class="eyebrow">YOUR SOUND, YOUR SPACE <span>VOL. 03</span></div><h1 id="page-title">声音，在这里有了形状。</h1><p id="page-description">挑一张唱片，把时间留给喜欢的声音。</p><div class="collection-stats" id="collection-stats">正在整理唱片墙…</div></div><div class="wall-controls"><button class="button subtle" id="wall-depth" aria-pressed="true">◈ 空间陈列</button><button class="button subtle" id="wall-immerse" aria-pressed="false">⛶ 沉浸浏览</button><button class="button subtle" id="wall-fullscreen">全屏 ↗</button></div></div>
+<div class="hero"><div><div class="eyebrow">YOUR SOUND, YOUR SPACE <span>VOL. 04</span></div><h1 id="page-title">声音，在这里有了形状。</h1><p id="page-description">挑一张唱片，把时间留给喜欢的声音。</p><div class="collection-stats" id="collection-stats">正在整理唱片墙…</div></div><div class="wall-controls"><button class="button subtle" id="wall-depth" aria-pressed="true">◈ 空间陈列</button><button class="button subtle" id="wall-immerse" aria-pressed="false">⛶ 沉浸浏览</button><button class="button subtle" id="wall-fullscreen">全屏 ↗</button></div></div>
 <div class="library-toolbar"><div class="view-label"><h2 id="list-title">我的唱片墙</h2><span id="result-count"></span></div><div class="filters"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="搜索歌名、演唱者、版本" aria-label="搜索收藏"></label><select id="sort" aria-label="排序"><option value="new">最近收藏</option><option value="title">歌名 A–Z</option><option value="artist">演唱者</option></select></div></div>
 <p class="wall-hint">点击封面，走近一个版本。<span>SPACE TO LISTEN · ROOM TO KEEP</span></p><div id="track-grid" class="track-grid record-wall" aria-live="polite"></div>
 <div id="empty-state" class="empty-state" hidden><div class="empty-record">♪</div><h3>给喜欢的声音，留一个位置。</h3><p>粘贴 B站链接，或导入电脑里的音视频文件。</p><button class="button primary" id="empty-add">添加第一首音乐</button></div>
 </section>
-<section id="room-view" hidden><div class="room-top"><div class="eyebrow">MAKE YOURSELF AT HOME</div><h1>留住声音，也留住现场。</h1><p>从唱片墙选一个版本，让它陪你待一会儿。</p></div><div class="room-toolbar"><button id="room-back" class="button subtle">← 返回唱片墙</button><div class="mode-switch" role="group" aria-label="播放方式"><button id="mode-audio" aria-pressed="true">收听</button><button id="mode-video" aria-pressed="false" disabled>观看现场</button></div><button id="room-fullscreen" class="button subtle">全屏 ↗</button></div><p id="video-hint" class="field-hint">选择一首收藏后，可以在这里切换收听和观看。</p><button id="prepare-video" class="button subtle" hidden>为这份收藏准备现场视频</button><div class="listening-room" id="room-stage" data-theme="warm"><div class="room-glow"></div><video id="live-video" playsinline preload="metadata" aria-label="本地现场视频" hidden></video><div id="room-cover" class="room-art"></div><div class="room-info"><small>NOW PLAYING</small><h2 id="room-title">你的下一首心动</h2><p id="room-artist">先从唱片墙播放一首音乐</p><p id="room-note"></p><button id="room-play" class="button light">播放 / 暂停</button></div></div><div class="room-controls"><div class="timeline"><span id="room-current">0:00</span><input type="range" id="room-seek" min="0" max="100" value="0" step="0.1" aria-label="听音室播放进度" disabled><span id="room-duration">0:00</span></div><div class="room-transport"><button id="room-previous" class="icon-button" aria-label="听音室上一首">‹</button><button id="room-next" class="icon-button" aria-label="听音室下一首">›</button><button id="room-repeat" class="icon-button" aria-label="听音室单曲循环" aria-pressed="false">↻</button><label>音量 <input id="room-volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="听音室音量"></label></div></div><div class="room-themes"><span>房间氛围</span><button data-theme="warm" class="theme active">暖光</button><button data-theme="night" class="theme">夜色</button><button data-theme="forest" class="theme">林间</button><small>氛围选择会保存在这个浏览器。</small></div></section>
+<section id="room-view" hidden data-mode="audio" data-mood="calm">
+  <div class="room-top"><div class="eyebrow">A MOMENT, JUST FOR YOU</div></div>
+  <div class="room-toolbar">
+    <button id="room-back" class="button subtle">← 返回唱片墙</button>
+    <div class="mode-switch" role="group" aria-label="播放方式"><button id="mode-audio" aria-pressed="true">收听</button><button id="mode-video" aria-pressed="false" disabled>观看现场</button></div>
+    <button id="room-fullscreen" class="button subtle">全屏 ↗</button>
+  </div>
+  <header class="room-heading"><div><small id="room-kind">PRIVATE LISTENING SESSION</small><h2 id="room-title">你的下一首心动</h2><p id="room-artist">先从唱片墙播放一首音乐</p></div><span id="room-mood-label">舒缓 · 呼吸</span></header>
+  <p id="video-hint" class="field-hint">选择一首收藏后，可以在这里切换收听和观看。</p>
+  <button id="prepare-video" class="button subtle" hidden>为这份收藏准备现场视频</button>
+  <div class="listening-room" id="room-stage" data-theme="warm">
+    <div class="room-glow" aria-hidden="true"></div><canvas id="stage-light" width="32" height="18" aria-hidden="true"></canvas>
+    <video id="live-video" playsinline preload="metadata" aria-label="本地现场视频" hidden></video>
+    <div class="room-sleeve"><div id="room-cover" class="room-art"></div><p id="room-note"></p><small>此刻，只留声音。</small></div>
+    <div id="lyric-stage" aria-label="同步歌词"><div id="lyric-window"></div><div id="lyric-empty"><span>WORDS IN THE AIR</span><h3>让每一句，<br>在这里停留。</h3><p id="lyric-empty-hint">导入这份版本的歌词，让文字随声音亮起。</p><button id="lyric-empty-import" class="button subtle">＋ 导入歌词</button></div><p id="lyric-timing-label"></p></div>
+  </div>
+  <div class="room-controls"><div class="timeline"><span id="room-current">0:00</span><input type="range" id="room-seek" min="0" max="100" value="0" step="0.1" aria-label="听音室播放进度" disabled><span id="room-duration">0:00</span></div><div class="room-transport"><button id="room-previous" class="icon-button" aria-label="听音室上一首">‹</button><button id="room-play" class="button light">开始播放</button><button id="room-next" class="icon-button" aria-label="听音室下一首">›</button><button id="room-repeat" class="icon-button" aria-label="听音室单曲循环" aria-pressed="false">↻</button><label>音量 <input id="room-volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="听音室音量"></label></div></div>
+  <div class="room-options"><button id="lyrics-settings" class="button subtle">歌词与动效</button><button id="video-fit" class="button subtle" aria-pressed="false" hidden>画面：完整显示</button><button id="ambient-toggle" class="button subtle" aria-pressed="true">环境光：开启</button></div>
+  <div class="room-themes"><span>房间底色</span><button data-theme="warm" class="theme active">暖光</button><button data-theme="night" class="theme">夜色</button><button data-theme="forest" class="theme">林间</button></div>
+  <dialog id="lyrics-dialog" aria-labelledby="lyrics-dialog-title"><form id="lyrics-form">
+    <div class="dialog-heading"><div><small>WORDS & MOTION</small><h2 id="lyrics-dialog-title">歌词与动效</h2></div><button type="button" id="lyrics-close" class="icon-button" aria-label="关闭歌词设置">×</button></div>
+    <p id="lyrics-filename" class="field-hint">尚未导入歌词</p><label class="lyric-file-label">导入／更换 LRC 文件<input id="lyrics-file" type="file" accept=".lrc"></label>
+    <p class="field-hint">支持 [分:秒] 逐句和 &lt;分:秒&gt; 逐字时间。普通 LRC 只按句亮起，不推算逐字演唱时间。</p>
+    <label>歌词时间对应<select id="lyric-clock"><option value="source">完整原音轨（裁剪后仍对齐原时间）</option><option value="clip">当前收藏片段（从片段开头计时）</option></select></label>
+    <label>歌词延后（秒）<div class="offset-row"><button type="button" id="lyric-earlier" class="button subtle" aria-label="歌词提前四分之一秒">− 0.25</button><input id="lyric-offset" type="number" min="-600" max="600" step="0.01" value="0"><button type="button" id="lyric-later" class="button subtle" aria-label="歌词延后四分之一秒">＋ 0.25</button></div></label>
+    <p class="field-hint">正数让歌词晚出现，负数让歌词早出现。调整会即时预览，保存后记住。</p>
+    <div class="lyric-align"><label>选一句，校准到当前声音<select id="lyric-anchor" aria-label="选择校准歌词"></select></label><button type="button" id="lyric-align-now" class="button subtle">这句现在开始</button><span id="lyric-clock-now" class="field-hint"></span></div>
+    <label>文字情绪<select id="lyric-mood"><option value="auto">自动 · 参考歌词文字</option><option value="calm">舒缓 · 缓慢浮起</option><option value="bright">明亮 · 轻盈跃动</option><option value="intense">热烈 · 更强光晕</option></select></label>
+    <p class="field-hint">自动模式依据少量中英文关键词切换氛围，不分析音频；你可以手动选定。系统「减弱动态效果」开启时使用静态高亮。</p>
+    <p id="lyrics-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" id="lyrics-cancel" class="button subtle">取消调整</button><button type="submit" class="button primary">保存设置</button></div>
+  </form></dialog>
+</section>
 <section id="tasks-view" hidden><div class="section-heading"><div class="eyebrow">EVERY VERSION HAS A JOURNEY</div><h1>导入记录</h1><p>从一个链接，到唱片墙上的一个位置。</p></div><div id="job-list"></div></section>
 <footer class="page-footer">留声间 <span>收藏喜欢的版本，布置自己的听歌空间。</span></footer>
 </main>
