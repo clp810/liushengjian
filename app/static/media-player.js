@@ -14,7 +14,7 @@ class CollectionPlayer extends EventTarget {
       for (const name of ['play', 'pause', 'loadedmetadata', 'error', 'ended', 'timeupdate']) {
         element.addEventListener(name, () => {
           if (element !== this.active) return;
-          if (element === video && (name === 'timeupdate' || name === 'ended') &&
+          if (element === video && (name === 'ended' || (name === 'timeupdate' && !video.paused)) &&
               video.currentTime >= this.start + this.duration - .04) {
             if (this.repeating) {
               video.currentTime = this.start;

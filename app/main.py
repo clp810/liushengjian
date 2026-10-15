@@ -182,7 +182,7 @@ def create_app(data_dir=None, seed=True):
         yield
         pool.shutdown(wait=True, cancel_futures=False)
 
-    app = FastAPI(title='留声间', version='0.2.0', lifespan=lifespan)
+    app = FastAPI(title='留声间', version='0.3.0', lifespan=lifespan)
     app.state.store = store
 
     @app.middleware('http')
@@ -206,7 +206,7 @@ def create_app(data_dir=None, seed=True):
 
     @app.get('/api/status')
     def status():
-        return dict(name='留声间', version='0.2.0', ffmpeg=bool(shutil.which('ffmpeg')),
+        return dict(name='留声间', version='0.3.0', ffmpeg=bool(shutil.which('ffmpeg')),
                     ffprobe=bool(shutil.which('ffprobe')), storage=str(store.root),
                     cloud_mode='manual', max_upload_mb=512)
 

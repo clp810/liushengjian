@@ -45,8 +45,16 @@ def wait_audio(page, selector, minimum):
     raise AssertionError(f'Audio did not advance: {selector}')
 
 
+def card_action(page, action, tid=None):
+    card=page.locator(f'.track-card[data-id="{tid}"]') if tid else page.locator('.track-card').first
+    if action in ('edit','export','room','archive','restore','retry'):
+        menu=card.locator('details')
+        if menu.get_attribute('open') is None: menu.locator('summary').click()
+    card.locator(f'[data-action={action}]').click()
+
+
 def verify_video(page, tid):
-    page.locator('[data-action=room]').click()
+    card_action(page, 'room')
     page.evaluate('document.querySelector("#live-video").muted=true')
     # Pause, seek relative to the audio clip and preserve the paused state.
     page.evaluate('audio.pause(); audio.currentTime=2')
@@ -55,6 +63,11 @@ def verify_video(page, tid):
     page.wait_for_function('() => Math.abs(document.querySelector("#live-video").currentTime-12)<.25')
     assert page.locator('#live-video').evaluate('(v)=>v.paused')
     assert page.locator('#audio').evaluate('(a)=>a.paused')
+    page.evaluate('window.clipEnds=0;audio.addEventListener("ended",()=>window.clipEnds++);audio.currentTime=audio.duration')
+    page.wait_for_function('() => !document.querySelector("#live-video").seeking')
+    assert page.evaluate('window.clipEnds')==0
+    assert page.locator('#live-video').evaluate('(v)=>v.paused')
+    page.evaluate('audio.currentTime=2')
     page.locator('#room-play').click()
     wait_audio(page, '#live-video', 12.3)
     assert page.locator('#audio').evaluate('(a)=>a.paused')
@@ -102,6 +115,7 @@ def run():
                     try:
                         if httpx.get(BASE+'/api/status',timeout=.3).status_code==200:break
                     except httpx.HTTPError:time.sleep(.1)
+                assert Path(httpx.get(BASE+'/api/status').json()['storage']).resolve()==(tmp/'data').resolve(), 'Refusing to test against non-temporary storage'
                 with sync_playwright() as p:
                     browser=p.chromium.launch(channel='chrome',headless=True)
                     context=browser.new_context(viewport={'width':1440,'height':1000},accept_downloads=True)
@@ -129,11 +143,11 @@ def run():
                     wait_audio(page, '#audio', .2)
                     assert page.locator('#audio').evaluate('(a)=>!a.paused')
                     log('PASS: Browser audio playback advances')
-                    page.locator('[data-action=favorite]').click()
+                    card_action(page, 'favorite')
                     page.locator('[data-view=favorites]').click()
                     page.locator('.track-card').wait_for()
                     assert page.locator('.track-card').count()==1
-                    page.locator('[data-action=edit]').click()
+                    card_action(page, 'edit')
                     form=page.locator('#edit-form')
                     form.locator('[name=title]').fill('Automatic')
                     form.locator('[name=artist]').fill('宇多田光')
@@ -146,8 +160,8 @@ def run():
                     wait_audio(page, '#preview-audio', 10)
                     form.locator('button[type=submit]').click()
                     track=wait_ready(tid,8.5)
-                    page.locator('[data-action=export]').wait_for(timeout=15000)
-                    page.locator('[data-action=export]').click()
+                    page.locator('[data-action=export]').wait_for(timeout=15000,state='attached')
+                    card_action(page, 'export')
                     assert '手动导入' in page.locator('#export-dialog').inner_text()
                     with page.expect_download() as dl:
                         page.locator('#export-mp3').click()
@@ -161,7 +175,7 @@ def run():
                     page.locator('#export-dialog .close-dialog').click()
                     verify_video(page, tid)
                     log('PASS: UI trim preview, metadata edit, MP3 download and byte-range playback')
-                    page.locator('[data-action=edit]').click()
+                    card_action(page, 'edit')
                     art=tmp/'cover.png';Image.new('RGB',(400,400),'#586c51').save(art)
                     page.locator('#cover-file').set_input_files(art)
                     page.locator('#edit-cover img').wait_for()
@@ -172,10 +186,10 @@ def run():
                     page.locator('[data-cover=dusk]').click()
                     page.wait_for_function('() => document.querySelector("[data-cover=dusk]").getAttribute("aria-pressed")==="true"')
                     page.locator('#edit-dialog .dialog-heading .close-dialog').click()
-                    page.locator('[data-action=archive]').click()
+                    card_action(page, 'archive')
                     page.locator('[data-view=archive]').click()
-                    page.locator('[data-action=restore]').wait_for()
-                    page.locator('[data-action=restore]').click()
+                    page.locator('[data-action=restore]').wait_for(state='attached')
+                    card_action(page, 'restore')
                     page.locator('[data-view=library]').click()
                     page.locator('.track-card').wait_for()
                     log('PASS: Cover upload, favorite, archive and restore')
@@ -204,20 +218,23 @@ def run():
                     assert page.locator('.listening-room').get_attribute('data-theme')=='night'
                     page.screenshot(path=str(RESULTS/'listening-room.png'),full_page=True)
                     page.reload(wait_until='networkidle')
+                    page.wait_for_function('() => document.querySelector("#mode-video").getAttribute("aria-pressed")==="true"')
+                    assert page.locator('#live-video').evaluate('(v)=>v.paused')
+                    assert page.locator('#audio').evaluate('(a)=>a.paused')
                     assert page.locator('.listening-room').get_attribute('data-theme')=='night'
                     page.locator('.track-card').first.wait_for()
                     assert page.locator('.track-card').count()==2
                     page.set_viewport_size({'width':390,'height':844})
                     page.screenshot(path=str(RESULTS/'mobile-library.png'),full_page=True)
                     assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
-                    page.locator(f'[data-id="{tid}"] [data-action=room]').click()
+                    card_action(page,'room',tid)
                     page.locator('#mode-video').click()
                     page.wait_for_function('() => document.querySelector("#mode-video").getAttribute("aria-pressed")==="true"')
                     assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
                     page.screenshot(path=str(RESULTS/'mobile-video.png'),full_page=True)
                     page.locator('#room-play').click()
                     page.locator('#room-back').click()
-                    page.locator(f'[data-id="{tid}"] [data-action=edit]').click()
+                    card_action(page,'edit',tid)
                     page.screenshot(path=str(RESULTS/'mobile-covers.png'),full_page=True)
                     assert page.locator('[data-cover=dusk]').is_visible()
                     page.locator('#edit-dialog .dialog-heading .close-dialog').click()
@@ -239,7 +256,7 @@ def run():
                 assert sample['has_video'] and sample['cover_style']=='dusk'
                 assert sample['favorite'] and sample['has_cover'] and sample['duration']==8.5 and not sample['archived']
                 log('PASS: Restart persistence, mobile layout, room theme and zero browser errors')
-                (RESULTS/'browser-report.json').write_text(json.dumps({'bilibili_import':True,'local_video_range':True,'audio_video_switch_and_clip':True,'video_loop_and_end':True,'fullscreen':True,'preset_covers':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_restore':True,'search_and_dedup':True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
+                (RESULTS/'browser-report.json').write_text(json.dumps({'bilibili_import':True,'local_video_range':True,'audio_video_switch_and_clip':True,'video_loop_and_end':True,'fullscreen':True,'preset_covers':True,'paused_video_resume':True,'paused_seek_end_no_autoplay':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_restore':True,'search_and_dedup':True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
             finally:
                 process.terminate()
                 try:process.wait(timeout=15)
