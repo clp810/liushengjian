@@ -7,7 +7,8 @@
 <link rel="stylesheet" href="/static/v02.css">
 <link rel="stylesheet" href="/static/space.css">
 <link rel="stylesheet" href="/static/room.css">
-<script src="/static/media-player.js" defer></script><script src="/static/app.js" defer></script><script src="/static/space.js" defer></script><script src="/static/room.js" defer></script>
+<link rel="stylesheet" href="/static/lyric-match.css">
+<script src="/static/media-player.js" defer></script><script src="/static/app.js" defer></script><script src="/static/space.js" defer></script><script src="/static/room.js" defer></script><script src="/static/lyric-match.js" defer></script>
 </head>
 <body data-wall="space">
 <div class="atmosphere" aria-hidden="true"><div class="ambient-light light-a"></div><div class="ambient-light light-b"></div><div class="space-floor"></div></div>
@@ -20,16 +21,15 @@
 <button class="nav" data-view="favorites"><span>♡</span> 心动版本</button>
 <button class="nav" data-view="room"><span>◉</span> 听音室</button>
 <button class="nav" data-view="tasks"><span>↧</span> 导入记录 <i id="task-dot" hidden></i></button>
-<button class="nav" data-view="archive"><span>▱</span> 已收起</button>
 </nav>
 <div class="side-note"><span class="little-star">✳</span><p>有些版本，<br>值得好好留下。</p><small>音乐与收藏记录保存在本机。</small></div>
 <button class="nav settings" id="help-button"><span>↗</span> 导入网易云指南</button>
-<div class="local-badge"><span></span> 本地空间 <small>v0.4</small></div>
+<div class="local-badge"><span></span> 本地空间 <small>v0.5</small></div>
 </aside>
 <main>
 <header class="topbar"><span id="breadcrumb">我的空间 <em>/</em> 全部收藏</span><div class="top-actions"><span id="environment-status" class="status-label">正在连接本地空间</span><button class="button primary" id="add-button">＋ 添加音乐</button></div></header>
 <section id="library-view">
-<div class="hero"><div><div class="eyebrow">YOUR SOUND, YOUR SPACE <span>VOL. 04</span></div><h1 id="page-title">声音，在这里有了形状。</h1><p id="page-description">挑一张唱片，把时间留给喜欢的声音。</p><div class="collection-stats" id="collection-stats">正在整理唱片墙…</div></div><div class="wall-controls"><button class="button subtle" id="wall-depth" aria-pressed="true">◈ 空间陈列</button><button class="button subtle" id="wall-immerse" aria-pressed="false">⛶ 沉浸浏览</button><button class="button subtle" id="wall-fullscreen">全屏 ↗</button></div></div>
+<div class="hero"><div><div class="eyebrow">YOUR SOUND, YOUR SPACE <span>VOL. 05</span></div><h1 id="page-title">声音，在这里有了形状。</h1><p id="page-description">挑一张唱片，把时间留给喜欢的声音。</p><div class="collection-stats" id="collection-stats">正在整理唱片墙…</div></div><div class="wall-controls"><button class="button subtle" id="wall-depth" aria-pressed="true">◈ 空间陈列</button><button class="button subtle" id="wall-immerse" aria-pressed="false">⛶ 沉浸浏览</button><button class="button subtle" id="wall-fullscreen">全屏 ↗</button></div></div>
 <div class="library-toolbar"><div class="view-label"><h2 id="list-title">我的唱片墙</h2><span id="result-count"></span></div><div class="filters"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="搜索歌名、演唱者、版本" aria-label="搜索收藏"></label><select id="sort" aria-label="排序"><option value="new">最近收藏</option><option value="title">歌名 A–Z</option><option value="artist">演唱者</option></select></div></div>
 <p class="wall-hint">点击封面，走近一个版本。<span>SPACE TO LISTEN · ROOM TO KEEP</span></p><div id="track-grid" class="track-grid record-wall" aria-live="polite"></div>
 <div id="empty-state" class="empty-state" hidden><div class="empty-record">♪</div><h3>给喜欢的声音，留一个位置。</h3><p>粘贴 B站链接，或导入电脑里的音视频文件。</p><button class="button primary" id="empty-add">添加第一首音乐</button></div>
@@ -48,10 +48,10 @@
     <div class="room-glow" aria-hidden="true"></div><canvas id="stage-light" width="32" height="18" aria-hidden="true"></canvas>
     <video id="live-video" playsinline preload="metadata" aria-label="本地现场视频" hidden></video>
     <div class="room-sleeve"><div id="room-cover" class="room-art"></div><p id="room-note"></p><small>此刻，只留声音。</small></div>
-    <div id="lyric-stage" aria-label="同步歌词"><div id="lyric-window"></div><div id="lyric-empty"><span>WORDS IN THE AIR</span><h3>让每一句，<br>在这里停留。</h3><p id="lyric-empty-hint">导入这份版本的歌词，让文字随声音亮起。</p><button id="lyric-empty-import" class="button subtle">＋ 导入歌词</button></div><p id="lyric-timing-label"></p></div>
+    <div id="lyric-stage" aria-label="同步歌词"><div id="lyric-window"></div><div id="lyric-empty"><span>WORDS IN THE AIR</span><h3>让每一句，<br>在这里停留。</h3><p id="lyric-empty-hint">找到歌词，让文字跟上这场演唱。</p><button id="lyric-empty-import" class="button subtle">匹配这首歌的歌词</button></div><p id="lyric-timing-label"></p></div>
   </div>
   <div class="room-controls"><div class="timeline"><span id="room-current">0:00</span><input type="range" id="room-seek" min="0" max="100" value="0" step="0.1" aria-label="听音室播放进度" disabled><span id="room-duration">0:00</span></div><div class="room-transport"><button id="room-previous" class="icon-button" aria-label="听音室上一首">‹</button><button id="room-play" class="button light">开始播放</button><button id="room-next" class="icon-button" aria-label="听音室下一首">›</button><button id="room-repeat" class="icon-button" aria-label="听音室单曲循环" aria-pressed="false">↻</button><label>音量 <input id="room-volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="听音室音量"></label></div></div>
-  <div class="room-options"><button id="lyrics-settings" class="button subtle">歌词与动效</button><button id="video-fit" class="button subtle" aria-pressed="false" hidden>画面：完整显示</button><button id="ambient-toggle" class="button subtle" aria-pressed="true">环境光：开启</button></div>
+  <div class="room-options"><button id="match-lyrics" class="button subtle">匹配歌词 · AI 对齐</button><button id="lyrics-settings" class="button subtle">歌词与动效</button><button id="video-fit" class="button subtle" aria-pressed="false" hidden>画面：完整显示</button><button id="ambient-toggle" class="button subtle" aria-pressed="true">环境光：开启</button></div>
   <div class="room-themes"><span>房间底色</span><button data-theme="warm" class="theme active">暖光</button><button data-theme="night" class="theme">夜色</button><button data-theme="forest" class="theme">林间</button></div>
   <dialog id="lyrics-dialog" aria-labelledby="lyrics-dialog-title"><form id="lyrics-form">
     <div class="dialog-heading"><div><small>WORDS & MOTION</small><h2 id="lyrics-dialog-title">歌词与动效</h2></div><button type="button" id="lyrics-close" class="icon-button" aria-label="关闭歌词设置">×</button></div>
@@ -65,6 +65,32 @@
     <p class="field-hint">自动模式依据少量中英文关键词切换氛围，不分析音频；你可以手动选定。系统「减弱动态效果」开启时使用静态高亮。</p>
     <p id="lyrics-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" id="lyrics-cancel" class="button subtle">取消调整</button><button type="submit" class="button primary">保存设置</button></div>
   </form></dialog>
+  <dialog id="match-dialog" aria-labelledby="match-title">
+    <div class="dialog-heading"><div><small>LYRICS FOR THIS PERFORMANCE</small><h2 id="match-title">为这场演唱，配上歌词。</h2></div><button id="match-close" class="icon-button" aria-label="关闭歌词匹配">×</button></div>
+    <p id="match-song" class="field-hint"></p>
+    <div class="match-steps" aria-label="匹配步骤"><span data-step="search">01 找歌词</span><span data-step="text">02 确认内容</span><span data-step="review">03 校准预览</span></div>
+    <section id="match-search-panel">
+      <form id="match-search-form"><label for="match-query">歌名／歌手</label><div class="match-search-row"><input id="match-query" maxlength="200" required placeholder="输入歌名与歌手"><select id="match-provider" aria-label="歌词来源"><option value="netease">网易云音乐</option><option value="qq">QQ 音乐</option><option value="lrclib">LRCLIB 歌词库</option></select><button class="button primary" type="submit">查找</button></div></form>
+      <p class="field-hint">按歌曲信息寻找候选，请确认歌名、歌手和版本。搜索仅发送查询文字，不上传音频。</p>
+      <div id="match-results" aria-live="polite"><p class="match-placeholder">找到文字，再让它跟上这场演唱。</p></div>
+      <div class="match-secondary"><button id="match-paste" class="button subtle">直接粘贴歌词</button><button id="match-existing" class="button subtle">使用已保存的歌词文字</button></div>
+    </section>
+    <section id="match-text-panel" hidden>
+      <p id="match-source" class="field-hint"></p><label for="match-text">按实际演唱顺序，每句一行</label><textarea id="match-text" rows="10" maxlength="16000" placeholder="在这里粘贴或修改歌词。重复唱的副歌也请重复写出。"></textarea>
+      <p class="field-hint">删去未演唱的介绍与署名，补上重复句或改词。只分析片段时，请只保留片段中唱到的歌词。</p>
+      <div class="match-fields"><label>演唱语言<select id="match-language"><option value="zh">中文</option><option value="en">英语</option><option value="ja">日语</option><option value="ko">韩语</option><option value="fr">法语</option><option value="es">西班牙语</option><option value="de">德语</option><option value="it">意大利语</option><option value="pt">葡萄牙语</option></select></label><label>分析范围<select id="match-scope"><option value="source">完整原音轨</option><option value="clip">当前收藏片段</option></select></label></div>
+      <div id="match-progress" role="status" hidden><span id="match-phase"></span><progress id="match-progress-bar" max="100"></progress><button id="match-cancel-task" class="button subtle">取消处理</button></div>
+      <p class="field-hint" id="match-model-hint">AI 在本机分析，首次需联网安装组件并下载约 461 MB 模型。一次最多 15 分钟；处理可能需要几分钟，可关闭窗口，稍后回来查看。</p>
+      <div class="dialog-actions"><button id="match-back-search" class="button subtle">返回找歌词</button><button id="match-start" class="button primary">按这场演唱对齐</button></div>
+    </section>
+    <section id="match-review-panel" hidden>
+      <p id="match-review-summary" class="field-hint"></p><p class="field-hint">先试听，重点检查带提示的句子。时间对应完整原音轨，单位为秒；可以修改文字、开始与结束时间。这版先按句同步。</p>
+      <audio id="match-preview-audio" controls preload="metadata" aria-label="校准试听原音轨"></audio>
+      <div id="match-lines" class="match-lines"></div>
+      <div class="dialog-actions"><button id="match-redo" class="button subtle">修改文字，重新对齐</button><button id="match-apply" class="button primary">确认并保存歌词</button></div>
+    </section>
+    <p id="match-error" class="form-error" role="alert"></p>
+  </dialog>
 </section>
 <section id="tasks-view" hidden><div class="section-heading"><div class="eyebrow">EVERY VERSION HAS A JOURNEY</div><h1>导入记录</h1><p>从一个链接，到唱片墙上的一个位置。</p></div><div id="job-list"></div></section>
 <footer class="page-footer">留声间 <span>收藏喜欢的版本，布置自己的听歌空间。</span></footer>

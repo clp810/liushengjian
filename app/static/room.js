@@ -110,7 +110,7 @@
         const result=await pendingLyrics;
         if(token!==loadToken)return;
         documentData=result;settings={...defaults,...result?.settings};
-        $('#lyric-empty-hint').textContent='导入这份版本的歌词，让文字随声音亮起。';
+        $('#lyric-empty-hint').textContent='找到歌词，让文字跟上这场演唱。';
       } catch(error) {
         if(token!==loadToken)return;
         loadedKey='';$('#lyric-empty-hint').textContent=`歌词读取失败：${error.message} 可打开设置重试。`;
@@ -145,7 +145,6 @@
     if(!value){$('#lyric-anchor').disabled=!$('#lyric-anchor').options.length;$('#lyric-align-now').disabled=$('#lyric-anchor').disabled;}
   }
   $('#lyrics-settings').addEventListener('click',openSettings);
-  $('#lyric-empty-import').addEventListener('click',openSettings);
   $('#lyrics-close').addEventListener('click',()=>dialog.close());$('#lyrics-cancel').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
   dialog.addEventListener('close',()=>{settings={...defaults,...documentData?.settings};renderLyrics(true);});

@@ -196,13 +196,9 @@ def run(local=False):
                     page.locator('[data-cover=dusk]').click()
                     page.wait_for_function('() => document.querySelector("[data-cover=dusk]").getAttribute("aria-pressed")==="true"')
                     page.locator('#edit-dialog .dialog-heading .close-dialog').click()
-                    card_action(page, 'archive')
-                    page.locator('[data-view=archive]').click()
-                    page.locator('[data-action=restore]').wait_for(state='attached')
-                    card_action(page, 'restore')
-                    page.locator('[data-view=library]').click()
-                    page.locator('.track-card').wait_for()
-                    log('PASS: Cover upload, favorite, archive and restore')
+                    assert page.locator('[data-view=archive]').count()==0
+                    assert page.locator('[data-action=archive]').count()==0
+                    log('PASS: Cover upload, favorite; retired archive controls absent')
                     page.locator('#search').fill('no matching music')
                     page.locator('#empty-state').wait_for(state='visible')
                     assert page.locator('.track-card').count()==0
@@ -270,7 +266,7 @@ def run(local=False):
                 assert sample['has_video'] and sample['cover_style']=='dusk'
                 assert sample['favorite'] and sample['has_cover'] and sample['duration']==8.5 and not sample['archived']
                 log('PASS: Restart persistence, mobile layout, room theme and zero browser errors')
-                report_path.write_text(json.dumps({'bilibili_import':None if local else True,'local_fixture':local,'local_video_range':True,'audio_video_switch_and_clip':True,'video_loop_and_end':True,'fullscreen':True,'preset_covers':True,'paused_video_resume':True,'paused_seek_end_no_autoplay':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_restore':True,'search':True,'bilibili_dedup':None if local else True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
+                report_path.write_text(json.dumps({'bilibili_import':None if local else True,'local_fixture':local,'local_video_range':True,'audio_video_switch_and_clip':True,'video_loop_and_end':True,'fullscreen':True,'preset_covers':True,'paused_video_resume':True,'paused_seek_end_no_autoplay':True,'local_import':True,'playback':True,'trim_preview':True,'metadata_and_download':True,'covers_and_favorites':True,'archive_controls_removed':True,'search':True,'bilibili_dedup':None if local else True,'restart_persistence':True,'mobile_overflow':False,'browser_errors':errors,'cloud_upload':'manual; not automated'},ensure_ascii=False,indent=2))
             except Exception as error:
                 report_path.write_text(json.dumps({'passed':False,'local_fixture':local,'error':str(error)},ensure_ascii=False,indent=2))
                 raise

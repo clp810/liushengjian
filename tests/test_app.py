@@ -89,16 +89,16 @@ def test_full_m4a_preserves_audio_packets(client,audio_sample,tmp_path):
     assert digest(audio_sample)==digest(output)
 
 
-def test_cover_favorites_archive_and_persistence(client,audio_sample):
+def test_cover_favorites_and_persistence(client,audio_sample):
     tid=imported(client,audio_sample)
     picture=io.BytesIO();Image.new('RGB',(150,100),'#aabbcc').save(picture,'PNG')
     assert client.post(f'/api/tracks/{tid}/cover',files={'file':('cover.png',picture.getvalue(),'image/png')}).status_code==200
     assert client.get(f'/api/tracks/{tid}/cover').headers['content-type']=='image/jpeg'
     assert client.post(f'/api/tracks/{tid}/cover',files={'file':('bad.png',b'not an image')}).status_code==422
-    assert client.patch(f'/api/tracks/{tid}',json={'favorite':True,'archived':True}).status_code==200
+    assert client.patch(f'/api/tracks/{tid}',json={'favorite':True}).status_code==200
     stored=Store(client.app.state.store.root).get('tracks',tid)
-    assert stored['favorite'] and stored['archived']
-    assert client.patch(f'/api/tracks/{tid}',json={'archived':False}).json()['archived'] is False
+    assert stored['favorite'] and not stored['archived']
+    assert client.patch(f'/api/tracks/{tid}',json={'archived':True}).status_code==422
 
 
 def test_invalid_media_and_retry_are_explicit(client):

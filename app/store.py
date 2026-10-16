@@ -20,6 +20,7 @@ class Store:
         with self.connect() as db:
             db.execute('CREATE TABLE IF NOT EXISTS tracks (id TEXT PRIMARY KEY, doc TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, doc TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS lyric_jobs (id TEXT PRIMARY KEY, doc TEXT NOT NULL)')
 
     @contextmanager
     def connect(self):
@@ -35,19 +36,19 @@ class Store:
             db.close()
 
     def put(self, table, doc):
-        assert table in ('tracks', 'jobs')
+        assert table in ('tracks', 'jobs', 'lyric_jobs')
         with self.lock, self.connect() as db:
             db.execute(f'INSERT OR REPLACE INTO {table} VALUES (?, ?)', (doc['id'], json.dumps(doc, ensure_ascii=False)))
         return doc
 
     def get(self, table, key):
-        assert table in ('tracks', 'jobs')
+        assert table in ('tracks', 'jobs', 'lyric_jobs')
         with self.lock, self.connect() as db:
             row = db.execute(f'SELECT doc FROM {table} WHERE id = ?', (key,)).fetchone()
         return json.loads(row[0]) if row else None
 
     def all(self, table):
-        assert table in ('tracks', 'jobs')
+        assert table in ('tracks', 'jobs', 'lyric_jobs')
         with self.lock, self.connect() as db:
             rows = db.execute(f'SELECT doc FROM {table}').fetchall()
         return sorted((json.loads(r[0]) for r in rows), key=lambda r: r['created_at'], reverse=True)
@@ -84,6 +85,13 @@ class Store:
         return str(path.resolve().relative_to(self.root))
 
     def recover(self):
+        # v0.5 retires archive without removing or moving any collection or media.
+        for track in self.all('tracks'):
+            if track.get('archived'):
+                self.patch('tracks', track['id'], archived=False)
+        for job in self.all('lyric_jobs'):
+            if job['status'] in ('queued', 'running'):
+                self.patch('lyric_jobs', job['id'], status='error', phase='处理已中断', error='上次对齐已中断，请重新开始。')
         for job in self.all('jobs'):
             if job['status'] in ('queued', 'running'):
                 self.patch('jobs', job['id'], status='error', phase='处理已中断', error='应用上次退出时任务尚未完成，请重试。')

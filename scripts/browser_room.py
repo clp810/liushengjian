@@ -53,7 +53,7 @@ def run():
                     page.locator('.inspect-cover').click();page.locator('#focus-listen').click()
                     page.wait_for_function('() => !audio.paused')
                     page.locator('#room-play').click();page.locator('#room-seek').fill('3.5')
-                    page.locator('#lyric-empty-import').click()
+                    page.locator('#lyrics-settings').click()
                     page.locator('#lyrics-file').set_input_files(str(lrc))
                     page.wait_for_function('() => document.querySelector("#lyrics-filename").textContent.includes("6 句")')
                     page.locator('#lyrics-cancel').click()

@@ -1,9 +1,16 @@
 [project]
 name = "liushengjian"
-version = "0.4.0"
+version = "0.5.0"
 description = "留声间 — 收藏喜欢的版本，布置自己的听歌空间"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "python-multipart>=0.0.20,<1", "yt-dlp>=2026.3.17", "pillow>=11,<13"]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+    "python-multipart>=0.0.20,<1",
+    "yt-dlp>=2026.3.17",
+    "pillow>=11,<13",
+    "httpx>=0.28,<1",
+]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "httpx>=0.28,<1", "playwright>=1.50,<2"]

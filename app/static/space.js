@@ -37,7 +37,7 @@
     wakeRoom();
   });
   document.addEventListener('viewchange',()=> {
-    if(!['library','favorites','archive'].includes(view)) {
+    if(!['library','favorites'].includes(view)) {
       document.body.classList.remove('immersed');
       $('#wall-immerse').setAttribute('aria-pressed',false);
       $('#wall-immerse').textContent='⛶ 沉浸浏览';
@@ -90,7 +90,7 @@
     $('#focus-artist').textContent=t.artist||'演唱者待补充';
     $('#focus-version').textContent=[t.version,t.album].filter(Boolean).join(' · ');
     $('#focus-note').textContent=t.note||'有些版本，值得好好留下。';
-    $('#focus-facts').innerHTML=[t.source_kind==='bilibili'?'B站收藏':'本地音源',time(t.duration),t.has_video?'含现场视频':'音频收藏',t.archived?'已收起':'私人收藏'].map(v=>`<span>${v}</span>`).join('');
+    $('#focus-facts').innerHTML=[t.source_kind==='bilibili'?'B站收藏':'本地音源',time(t.duration),t.has_video?'含现场视频':'音频收藏','私人收藏'].map(v=>`<span>${v}</span>`).join('');
     $('#focus-heart').textContent=t.favorite?'♥':'♡';
     $('#focus-heart').setAttribute('aria-pressed',t.favorite);
     $('#focus-heart').setAttribute('aria-label',t.favorite?'取消心动':'设为心动');
@@ -160,7 +160,7 @@
   function restorePlayback() {
     if(restored)return;restored=true;
     const saved=read('lsj-playback');const t=trackById(saved?.id);
-    if(currentId||!t?.has_audio||t.archived||t.status!=='ready')return;
+    if(currentId||!t?.has_audio||t.status!=='ready')return;
     currentId=t.id;audio.setTrack(t);audio.src=`/api/tracks/${t.id}/audio?v=${t.revision}`;
     const epoch=audio.epoch;
     const position=saved.revision===t.revision&&Number.isFinite(saved.position)&&saved.position<t.duration-.05?Math.max(0,saved.position):0;

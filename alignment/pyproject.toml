@@ -1,0 +1,5 @@
+[project]
+name = "liushengjian-alignment"
+version = "0.5.0"
+requires-python = ">=3.11,<3.13"
+dependencies = ["stable-ts==2.19.1", "openai-whisper==20250625", "torch==2.8.0", "torchaudio==2.8.0", "numpy<3"]

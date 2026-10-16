@@ -19,6 +19,7 @@ from typing import Literal
 
 from . import media, lyrics
 from .store import Store
+from .lyric_workflow import install_workflow
 
 PROJECT = Path(__file__).resolve().parents[1]
 MAX_UPLOAD = 512 * 1024 * 1024
@@ -56,7 +57,6 @@ class EditRequest(BaseModel):
 class FlagsRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     favorite: bool | None = None
-    archived: bool | None = None
 
 
 def create_app(data_dir=None, seed=True):
@@ -189,10 +189,12 @@ def create_app(data_dir=None, seed=True):
         if seed:
             maybe_seed()
         yield
+        workflow.shutdown()
         pool.shutdown(wait=True, cancel_futures=False)
 
-    app = FastAPI(title='留声间', version='0.4.0', lifespan=lifespan)
+    app = FastAPI(title='留声间', version='0.5.0', lifespan=lifespan)
     app.state.store = store
+    workflow = install_workflow(app, store)
 
     @app.middleware('http')
     async def local_only(request: Request, call_next):
@@ -215,7 +217,7 @@ def create_app(data_dir=None, seed=True):
 
     @app.get('/api/status')
     def status():
-        return dict(name='留声间', version='0.4.0', ffmpeg=bool(shutil.which('ffmpeg')),
+        return dict(name='留声间', version='0.5.0', ffmpeg=bool(shutil.which('ffmpeg')),
                     ffprobe=bool(shutil.which('ffprobe')), storage=str(store.root),
                     cloud_mode='manual', max_upload_mb=512)
 
@@ -234,7 +236,7 @@ def create_app(data_dir=None, seed=True):
         except ValueError as e:
             raise HTTPException(422, str(e))
         with store.lock:
-            existing = next((t for t in store.all('tracks') if t['source_url'] == url and not t['archived']), None)
+            existing = next((t for t in store.all('tracks') if t['source_url'] == url), None)
             if existing:
                 return dict(track_id=existing['id'], duplicate=True)
             if sum(j['status'] in ('queued', 'running') for j in store.all('jobs')) >= 8:
@@ -315,10 +317,6 @@ def create_app(data_dir=None, seed=True):
     @app.patch('/api/tracks/{track_id}')
     def flags(track_id: str, body: FlagsRequest):
         require_track(track_id, ready=False)
-        if body.archived is not None:
-
-            if store.get('tracks', track_id)['status'] == 'processing':
-                raise HTTPException(409, '正在处理这首音频，请完成后再收起。')
         return public_track(store.patch('tracks', track_id, **body.model_dump(exclude_none=True)))
 
     def lyric_document(track):
