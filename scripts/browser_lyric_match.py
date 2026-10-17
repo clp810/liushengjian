@@ -28,6 +28,13 @@ def ready(tid):
     raise AssertionError('import timed out')
 
 
+def open_match(page):
+    page.mouse.move(200,200)
+    page.locator('#room-settings-toggle').click()
+    page.locator('#lyrics-settings').click()
+    page.locator('#match-lyrics').click()
+
+
 def run():
     RESULTS.mkdir(exist_ok=True);errors=[]
     with tempfile.TemporaryDirectory(prefix='lsj-match-') as tmp:
@@ -56,16 +63,19 @@ def run():
                     page.locator('.inspect-cover').click();page.locator('#focus-listen').click();page.locator('#room-play').click()
                     page.locator('#room-fullscreen').click()
                     page.wait_for_function('() => document.fullscreenElement?.id === "room-view"')
-                    page.locator('#lyric-empty-import').click()
+                    open_match(page)
                     page.locator('#match-dialog').wait_for(state='visible')
                     assert page.evaluate('document.fullscreenElement.contains(document.querySelector("#match-dialog"))')
                     page.evaluate('document.exitFullscreen()')
-                    page.locator('#match-query').fill('晴天 周杰伦')
+                    page.locator('#match-query').fill('丸ノ内サディスティック 椎名林檎')
                     page.locator('#match-search-form button').click()
                     page.locator('.match-candidate').first.wait_for(timeout=25000)
                     assert page.locator('.match-candidate').count()>0
                     page.screenshot(path=str(RESULTS/'v05-search.png'),animations='disabled')
-                    page.locator('.match-candidate').first.click()
+                    with page.expect_response(lambda r:'/api/lyrics/candidates/' in r.url) as candidate_response:
+                        page.locator('.match-candidate').first.click()
+                    candidate=candidate_response.value.json()
+                    assert candidate['translations']
                     page.locator('#match-text').wait_for(state='visible')
                     assert len(page.locator('#match-text').input_value())>20
                     # Known fixture words test alignment without confusing song lyrics with spoken content.
@@ -76,7 +86,7 @@ def run():
                     page.wait_for_function('() => document.querySelector("#match-error").textContent.includes("已取消")')
                     assert httpx.get(BASE+f'/api/tracks/{tid}/lyrics').json()['lines']==[]
                     page.locator('#match-start').click();page.locator('#match-progress').wait_for(state='visible')
-                    page.locator('#match-close').click();page.locator('#match-lyrics').click()
+                    page.locator('#match-close').click();open_match(page)
                     try:
                         page.locator('#match-review-panel').wait_for(state='visible',timeout=180000)
                     except Exception:
@@ -99,6 +109,7 @@ def run():
                     page.locator('#match-apply').click()
                     assert rows.nth(0).get_attribute('class').endswith('invalid')
                     rows.nth(0).locator('[data-time=end]').fill(old)
+                    rows.nth(1).locator('.line-translation').fill('把这首歌留在心里。')
                     page.set_viewport_size({'width':390,'height':844})
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                     page.locator('#match-apply').scroll_into_view_if_needed()
@@ -107,17 +118,36 @@ def run():
                     assert httpx.get(BASE+f'/api/tracks/{tid}/lyrics').json()['lines'][1]['text']==TEXT.splitlines()[1]
                     page.locator('#room-seek').fill('3')
                     page.wait_for_function('() => document.querySelector(".lyric-line.current")?.textContent.includes("inside my heart")')
+                    assert page.locator('#lyric-translation').inner_text()=='把这首歌留在心里。'
                     page.reload(wait_until='networkidle');page.locator('[data-view=room]').click()
                     page.wait_for_function('() => document.querySelector(".lyric-line.current")?.textContent.includes("inside my heart")')
                     assert page.evaluate('audio.paused')
-                    page.locator('#match-lyrics').click();page.locator('#match-paste').click();page.locator('#match-text').fill(TEXT)
+                    open_match(page);page.locator('#match-paste').click();page.locator('#match-text').fill(TEXT)
                     page.locator('#match-start').click();page.locator('#match-progress').wait_for(state='visible')
                     page.locator('#match-cancel-task').click()
                     page.wait_for_function('() => document.querySelector("#match-error").textContent.includes("已取消")')
                     assert httpx.get(BASE+f'/api/tracks/{tid}/lyrics').json()['lines'][0]['text']==TEXT.splitlines()[0]
+                    # Populate a temporary saved timeline with real provider text, then add Chinese
+                    # through the visible lookup UI. This fixture is not an accuracy test for singing.
+                    pairs=candidate['translations'][:2]
+                    page.locator('#match-close').click()
+                    lrc='\n'.join(f'[00:{1+i*3:02d}]{pair["text"]}' for i,pair in enumerate(pairs))
+                    assert httpx.post(BASE+f'/api/tracks/{tid}/lyrics',files={'file':('translation-check.lrc',lrc.encode())}).status_code==200
+                    page.reload(wait_until='networkidle');page.locator('[data-view=room]').click();open_match(page)
+                    page.locator('#match-back-search').click()
+                    page.locator('#match-query').fill('丸ノ内サディスティック 椎名林檎')
+                    page.locator('#match-search-form button').click();page.locator('.match-candidate').first.click()
+                    page.locator('#match-translations summary').click()
+                    page.locator('#match-translation-apply').click();page.locator('#match-dialog').wait_for(state='hidden')
+                    translated=httpx.get(BASE+f'/api/tracks/{tid}/lyrics').json()
+                    assert [l['start'] for l in translated['lines']]==[1,4]
+                    assert [l['translation'] for l in translated['lines']]==[p['translation'] for p in pairs]
+                    page.locator('#room-seek').fill('2')
+                    page.wait_for_function('(text) => document.querySelector("#lyric-translation").textContent===text',arg=pairs[0]['translation'])
+                    assert page.locator('#lyric-translation').is_visible()
                     assert not errors,errors
                     browser.close()
-                report={'real_netease_search_and_lyrics':True,'real_local_whisper_small_alignment':True,'fixture':'synthesized English speech, not singing-quality benchmark','cancel_and_preserve_saved':True,'close_reopen_background_draft':True,'preview_audio_exclusive':True,'invalid_timing_rejected':True,'explicit_apply_and_reload':True,'mobile_no_overflow':True,'fullscreen_dialog_accessible':True,'archive_controls_removed':True,'browser_errors':errors}
+                report={'real_netease_search_and_lyrics':True,'real_local_whisper_small_alignment':True,'fixture':'synthesized English speech, not singing-quality benchmark','cancel_and_preserve_saved':True,'close_reopen_background_draft':True,'preview_audio_exclusive':True,'invalid_timing_rejected':True,'explicit_apply_and_reload':True,'mobile_no_overflow':True,'fullscreen_dialog_accessible':True,'archive_controls_removed':True,'real_online_chinese_fill_preserves_timing':True,'browser_errors':errors}
                 (RESULTS/'match-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
                 print('PASS: Online lookup, local AI alignment, cancel, review, save and paused reload',flush=True)
             except Exception:

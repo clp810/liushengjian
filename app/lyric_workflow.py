@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .lyric_sources import LyricSources, LookupError
 from .store import now
+from .translations import attach_by_text
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -27,12 +28,19 @@ class SearchRequest(BaseModel):
     provider: Literal['netease', 'qq', 'lrclib'] = 'netease'
 
 
+class TranslationPair(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    text: str = Field(min_length=1, max_length=500)
+    translation: str = Field(default='', max_length=1000)
+
+
 class AlignmentRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     text: str = Field(min_length=1, max_length=16000)
     language: Literal['zh', 'en', 'ja', 'ko', 'fr', 'es', 'de', 'it', 'pt'] = 'zh'
     scope: Literal['source', 'clip'] = 'source'
     source: str = Field(default='手动输入', max_length=300)
+    translations: list[TranslationPair] = Field(default_factory=list, max_length=500)
 
 
 class ReviewLine(BaseModel):
@@ -40,6 +48,7 @@ class ReviewLine(BaseModel):
     start: float = Field(ge=0)
     end: float = Field(gt=0)
     text: str = Field(min_length=1, max_length=500)
+    translation: str = Field(default='', max_length=1000)
 
 
 class ApplyRequest(BaseModel):
@@ -47,7 +56,21 @@ class ApplyRequest(BaseModel):
     lines: list[ReviewLine] = Field(min_length=1, max_length=500)
 
 
+class TranslationUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: str = Field(max_length=64)
+    translations: list[str] = Field(max_length=1500)
+
+
+class TranslationMatch(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: str = Field(max_length=64)
+    token: str = Field(max_length=64)
+
+
 def validate_lines(lines, duration):
+    if sum(len(line.get('translation','')) for line in lines)>50000:
+        raise ValueError('中文译文总计最多 5 万字。')
     previous = -1
     for line in lines:
         if not line['text'].strip() or not math.isfinite(line['start']) or not math.isfinite(line['end']):
@@ -120,6 +143,7 @@ class LyricWorkflow:
             jid = uuid.uuid4().hex
             job = dict(id=jid, track_id=tid, status='queued', phase='等待本地对齐', error='', percent=None,
                        text='\n'.join(lines), language=body.language, scope=body.scope, source=body.source,
+                       translations=[p.model_dump() for p in body.translations],
                        audio_revision=track['revision'], lyrics_revision=track.get('lyrics_revision',''),
                        source_duration=track['source_duration'], duration=duration,
                        offset=track['trim_start'] if body.scope=='clip' else 0,
@@ -194,6 +218,7 @@ class LyricWorkflow:
                 self.command([str(PROJECT/'alignment/.venv/bin/python'),str(PROJECT/'app/alignment_worker.py'),str(request_path)],event,log,progress_path=progress_path,jid=jid)
                 segments=json.loads((directory/'result.json').read_text())
                 rows=preview_lines(segments,job['duration'],job['offset'])
+                attach_by_text(rows, job.get('translations', []))
                 with self.lock:
                     if event.is_set(): raise InterruptedError()
                     self.store.patch('lyric_jobs',jid,status='done',phase='对齐完成，请试听并确认',percent=100,lines=rows)
@@ -224,6 +249,26 @@ class LyricWorkflow:
             self.store.patch('lyric_jobs',jid,status='applied',phase='已保存到这份收藏')
             return dict(ok=True)
 
+    def save_translations(self, tid, revision, translations, source='手动编辑'):
+        with self.store.lock:
+            track = self.track(tid)
+            if track.get('lyrics_revision', '') != revision:
+                raise HTTPException(409, '歌词已发生变化，请重新打开管理窗口，避免覆盖新内容。')
+            document = track.get('lyrics')
+            if not document or len(document['lines']) != len(translations):
+                raise HTTPException(422, '请先保存原文歌词，再逐句补充中文。')
+            if any(len(t)>1000 for t in translations) or sum(map(len,translations))>50000:
+                raise HTTPException(422, '中文每句最多 1000 字，总计最多 5 万字。')
+            for row, translated in zip(document['lines'], translations):
+                row['translation'] = translated.strip()
+            document['translation_source'] = source
+            revision = uuid.uuid4().hex
+            path = self.store.path(f'tracks/{tid}/lyrics-{revision}.json')
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(document, ensure_ascii=False, indent=2))
+            self.store.patch('tracks',tid,lyrics=document,lyrics_revision=revision,lyrics_path=self.store.relative(path))
+            return dict(ok=True, revision=revision)
+
 
 def install_workflow(app, store):
     workflow=LyricWorkflow(store)
@@ -253,5 +298,21 @@ def install_workflow(app, store):
 
     @app.post('/api/tracks/{tid}/lyrics/alignment/{jid}/apply')
     def apply(tid: str,jid: str,body: ApplyRequest): return workflow.apply(tid,jid,body)
+
+    @app.put('/api/tracks/{tid}/lyrics/translations')
+    def translations(tid: str, body: TranslationUpdate):
+        return workflow.save_translations(tid,body.revision,body.translations)
+
+    @app.post('/api/tracks/{tid}/lyrics/translations/match')
+    def translation_match(tid: str, body: TranslationMatch):
+        track = workflow.track(tid)
+        try: candidate = workflow.sources.fetch(body.token)
+        except LookupError as error: raise HTTPException(502,str(error)) from error
+        rows = track.get('lyrics',{}).get('lines',[])
+        matched = attach_by_text(rows,candidate['translations'])
+        if not matched:
+            raise HTTPException(422,'没有找到文字对应的中文译文，请换一个候选，或在管理歌词中手动填写。')
+        result = workflow.save_translations(tid,body.revision,[r.get('translation','') for r in rows],candidate['source'])
+        return {**result, 'matched': matched}
 
     return workflow

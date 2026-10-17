@@ -89,6 +89,7 @@ def verify_video(page, tid):
     page.locator('#mode-video').click()
     page.wait_for_function('() => !document.querySelector("#live-video").paused')
     page.screenshot(path=str(RESULTS/'live-video.png'),full_page=True)
+    page.locator('#room-settings-toggle').click()
     # The full source video must stop/loop at the selected audio clip boundary.
     page.locator('#room-repeat').click()
     page.evaluate('audio.currentTime=8.2')
@@ -222,7 +223,9 @@ def run(local=False):
                     log('PASS: Local file import retains embedded artist metadata')
                     page.locator('[data-view=room]').click()
                     page.locator('#mode-audio').click()
+                    page.locator('#room-settings-toggle').click()
                     page.locator('[data-theme=night].theme').click()
+                    page.locator('#room-settings-toggle').click()
                     assert page.locator('.listening-room').get_attribute('data-theme')=='night'
                     page.screenshot(path=str(RESULTS/'listening-room.png'),full_page=True)
                     page.locator('#mode-video').click()

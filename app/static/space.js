@@ -97,6 +97,7 @@
     $('#focus-play').textContent=currentId===t.id&&!audio.paused?'暂停':'播放';
     $('#focus-play').disabled=!t.has_audio;
     $('#focus-listen').disabled=!t.has_audio;
+    $('#focus-lyrics').disabled=!t.has_audio;
     $('#focus-edit').disabled=t.status!=='ready';
     $('#focus-export').disabled=!t.has_audio;
     setPalette(t);
@@ -115,6 +116,7 @@
     const id=focusId;focus.close();
     try {if(currentId!==id||audio.paused) await playTrack(id);setView('room');}catch(e){toast(e.message);}
   });
+  $('#focus-lyrics').addEventListener('click',()=>{const id=focusId;focus.close();document.dispatchEvent(new CustomEvent('manageLyrics',{detail:id}));});
   $('#focus-edit').addEventListener('click',()=>{const id=focusId;focus.close();openEdit(id);});
   $('#focus-export').addEventListener('click',()=>{const id=focusId;focus.close();openExport(id);});
 
@@ -183,13 +185,15 @@
 
   function wakeRoom() {
     clearTimeout(quietTimer);$('#room-view').classList.remove('quiet');
-    if(document.fullscreenElement===$('#room-view')&&!audio.paused) quietTimer=setTimeout(()=> {
-      if(!$('#room-view').querySelector(':focus-visible')) $('#room-view').classList.add('quiet');
-    },4000);
+    if(view==='room'&&!audio.paused) quietTimer=setTimeout(()=> {
+      if(!document.querySelector('dialog[open]') && $('#room-settings-panel').hidden && !$('#room-view').querySelector(':focus-visible')) $('#room-view').classList.add('quiet');
+    },3200);
   }
   ['pointermove','pointerdown','focusin','keydown'].forEach(name=>$('#room-view').addEventListener(name,wakeRoom));
   document.addEventListener('keydown',e=> {
+    if(view==='room')wakeRoom();
     if(e.key==='Escape') {
+      if(view==='room'&&!document.fullscreenElement&&!document.querySelector('dialog[open]'))setView('library');
       $$('.card-menu[open]').forEach(menu=>{menu.open=false;menu.querySelector('summary').focus();});
       if(!document.querySelector('dialog[open]')&&document.body.classList.contains('immersed'))$('#wall-immerse').click();
     }

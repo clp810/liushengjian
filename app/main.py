@@ -192,7 +192,7 @@ def create_app(data_dir=None, seed=True):
         workflow.shutdown()
         pool.shutdown(wait=True, cancel_futures=False)
 
-    app = FastAPI(title='留声间', version='0.5.0', lifespan=lifespan)
+    app = FastAPI(title='留声间', version='0.6.0', lifespan=lifespan)
     app.state.store = store
     workflow = install_workflow(app, store)
 
@@ -217,7 +217,7 @@ def create_app(data_dir=None, seed=True):
 
     @app.get('/api/status')
     def status():
-        return dict(name='留声间', version='0.5.0', ffmpeg=bool(shutil.which('ffmpeg')),
+        return dict(name='留声间', version='0.6.0', ffmpeg=bool(shutil.which('ffmpeg')),
                     ffprobe=bool(shutil.which('ffprobe')), storage=str(store.root),
                     cloud_mode='manual', max_upload_mb=512)
 
@@ -322,6 +322,7 @@ def create_app(data_dir=None, seed=True):
     def lyric_document(track):
         return {**track.get('lyrics', dict(lines=[], timed_words=False, file_offset=0)),
                 'settings': track.get('lyric_settings', LyricSettings().model_dump()),
+                'revision': track.get('lyrics_revision', ''),
                 'filename': track.get('lyrics_filename', '')}
 
     @app.get('/api/tracks/{track_id}/lyrics')

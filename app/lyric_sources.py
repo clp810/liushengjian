@@ -13,6 +13,7 @@ from threading import RLock
 import httpx
 
 from .lyrics import parse_lrc
+from .translations import attach_by_time
 
 PROVIDERS = {'netease': '网易云音乐', 'qq': 'QQ 音乐', 'lrclib': 'LRCLIB'}
 
@@ -42,7 +43,7 @@ class LyricSources:
     def request(self, url, *, params=None, payload=None):
         try:
             with httpx.Client(timeout=15, follow_redirects=False, transport=self.transport,
-                              headers={'User-Agent': 'Liushengjian/0.5 (local lyric lookup)',
+                              headers={'User-Agent': 'Liushengjian/0.6 (local lyric lookup)',
                                        'Referer': 'https://music.163.com/' if '163.com' in url else 'https://y.qq.com/'}) as client:
                 with client.stream('POST' if payload else 'GET', url, params=params, json=payload) as response:
                     response.raise_for_status()
@@ -119,10 +120,11 @@ class LyricSources:
             raise LookupError('候选已过期，请重新搜索。')
         item = entry[1]
         provider = item['provider']
-        synced, plain = '', ''
+        synced, plain, translated = '', '', ''
         if provider == 'netease':
             data = self.request('https://music.163.com/api/song/lyric', params={'id': item['remote_id'], 'lv': -1, 'kv': -1, 'tv': -1})
             synced = data.get('lrc', {}).get('lyric', '')
+            translated = (data.get('tlyric') or {}).get('lyric') or ''
         elif provider == 'qq':
             data = self.request('https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg',
                                 params={'songmid': item['mid'], 'format': 'json', 'nobase64': 1})
@@ -135,13 +137,18 @@ class LyricSources:
                 except (ValueError, UnicodeError):
                     raise LookupError('该歌词格式暂不支持，请切换来源。') from None
             synced = html.unescape(synced)
+            translated = html.unescape(data.get('trans') or '')
         else:
             data = self.request('https://lrclib.net/api/get/' + item['remote_id'])
             synced, plain = data.get('syncedLyrics') or '', data.get('plainLyrics') or ''
+        rows = []
         if synced:
             try:
                 rows = parse_lrc(synced.encode())['lines']
                 plain = '\n'.join(r['text'] for r in rows if r['text'])
+                if translated:
+                    try: attach_by_time(rows, parse_lrc(translated.encode())['lines'])
+                    except ValueError: pass  # Original lyrics remain usable if the translation is malformed.
             except ValueError:
                 plain = plain or re.sub(r'\[[^\]]*\]', '', synced)
         # Credit lines are not normally sung; users review the editable text before alignment.
@@ -152,4 +159,5 @@ class LyricSources:
         if len(plain) > 16000:
             raise LookupError('歌词过长，请使用较短版本或手动粘贴。')
         return dict(text=plain, title=item['title'], artist=item['artist'], source=item['source'], provider=provider,
-                    source_id=item['remote_id'], synced_available=bool(synced))
+                    source_id=item['remote_id'], synced_available=bool(synced),
+                    translations=[dict(text=r['text'], translation=r['translation']) for r in rows if r.get('translation')])

@@ -77,7 +77,7 @@ function renderPlayer() {
   if (!t) { $('#room-cover').innerHTML = coverHTML(null,true); return; }
   audio.setTrack(t);
   $('#mode-video').disabled = !t.has_video; $('#mode-audio').setAttribute('aria-pressed',audio.mode==='audio'); $('#mode-video').setAttribute('aria-pressed',audio.mode==='video');
-  $('#live-video').hidden = audio.mode !== 'video'; $('#room-cover').hidden = audio.mode === 'video'; $('#room-stage').classList.toggle('watching',audio.mode==='video');
+  $('#live-video').hidden = audio.mode !== 'video'; $('#room-cover').hidden = true; $('#room-stage').classList.toggle('watching',audio.mode==='video');
   $('#video-hint').textContent = t.has_video ? '现场已保存在本地 · 切换时接着当前片段播放' : t.can_prepare_video ? '这份收藏仅有音频，可以从来源准备现场视频。' : '这份收藏为纯音频；观看现场需要导入带画面的文件。';
   $('#prepare-video').hidden = t.has_video || !t.can_prepare_video || t.status !== 'ready'; $('#room-note').textContent = t.note || '';
   $('#player-title').textContent = t.title + (t.version ? ` · ${t.version}` : ''); $('#player-artist').textContent = t.artist || '演唱者待补充';
@@ -85,7 +85,7 @@ function renderPlayer() {
   $('#player-favorite').disabled = false; $('#player-favorite').textContent = t.favorite ? '♥' : '♡'; $('#player-favorite').classList.toggle('on',t.favorite);
   $('#room-seek').disabled = false; $('#room-seek').max = t.duration; $('#room-duration').textContent = time(t.duration); $('#play-toggle').disabled = false; $('#seek').disabled = false; $('#total-time').textContent = time(t.duration); updatePlayButton();
 }
-function updatePlayButton() { $('#play-toggle').textContent = audio.paused ? '▶' : 'Ⅱ'; $('#play-toggle').setAttribute('aria-label',audio.paused ? '播放' : '暂停'); $('#room-play').textContent = audio.paused ? '开始播放' : '暂停播放'; }
+function updatePlayButton() { $('#play-toggle').textContent = audio.paused ? '▶' : 'Ⅱ'; $('#play-toggle').setAttribute('aria-label',audio.paused ? '播放' : '暂停'); $('#room-play').textContent = audio.paused ? '▶' : 'Ⅱ'; $('#room-play').disabled = !trackById(currentId)?.has_audio; $('#room-play').setAttribute('aria-label',audio.paused?'播放':'暂停'); $('#room-play').title=audio.paused?'播放':'暂停'; }
 async function playTrack(id) {
   const t = trackById(id); if (!t || !t.has_audio) return;
   $('#preview-audio').pause();
@@ -169,7 +169,7 @@ $('#room-back').addEventListener('click',async()=>{if(document.fullscreenElement
 $('#room-fullscreen').addEventListener('click',async()=>{
   try {if(document.fullscreenElement)await document.exitFullscreen();else await $('#room-view').requestFullscreen();}catch{toast('当前环境无法全屏，请使用浏览器窗口的全屏功能。');}
 });
-document.addEventListener('fullscreenchange',()=>{$('#room-fullscreen').textContent=document.fullscreenElement?'退出全屏 ↙':'全屏 ↗';});
+document.addEventListener('fullscreenchange',()=>{$('#room-fullscreen').textContent='⛶'; $('#room-fullscreen').setAttribute('aria-label',document.fullscreenElement?'退出全屏':'全屏');});
 
 // Fullscreen keeps the same playback clock, volume and repeat setting.
 $('#room-seek').addEventListener('input',e=>{audio.currentTime=Number(e.target.value);});

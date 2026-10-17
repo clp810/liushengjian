@@ -113,7 +113,7 @@ def run():
                     page.locator('[data-view=room]').click()
                     page.locator('#room-fullscreen').click()
                     page.wait_for_function('() => document.fullscreenElement?.id==="room-view"')
-                    page.locator('#room-title').click();page.mouse.move(5,5)
+                    page.locator('#lyric-stage').click();page.mouse.move(5,5)
                     page.wait_for_function('() => document.querySelector("#room-view").classList.contains("quiet")',timeout=7000)
                     page.mouse.move(200,200)
                     page.wait_for_function('() => !document.querySelector("#room-view").classList.contains("quiet")')
