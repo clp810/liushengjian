@@ -64,6 +64,6 @@
 ## 版本管理
 
 - 版本 `0.7.0`，附注标签 `v0.7.0`；旧标签 v0.1.0 至 v0.6.0 保留。
-- 分支 `codex/v0.7-automatic-lyrics`，作者 `Codex <codex@localhost>`；本地管理，无远程或推送。
+- 本地开发分支 `codex/v0.7-automatic-lyrics`，作者 `Codex <codex@localhost>`；GitHub 私有仓库为 [clp810/liushengjian](https://github.com/clp810/liushengjian)，远程默认分支为 `main`，同步已完成版本及附注标签。本次仅配置代码托管，未部署公网网站，未改动应用功能，沿用上述 v0.7 验证记录。
 - 仅提交源码、测试、锁文件与文档，排除用户歌词、音视频、收藏数据库、凭证、模型、缓存及截图。
 - 用户修改的 `待改进/留声间待改进.docx` 保持原样，不纳入提交。

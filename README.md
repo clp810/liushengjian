@@ -184,7 +184,7 @@ uv run python scripts/browser_automatic.py
 - 每个完成的版本都提交代码、测试和相关文档，并创建对应的版本标签。
 - 版本号记录在 `pyproject.toml`；完成内容、验证结果和限制记录在 `docs/STATUS.md`。
 - Git 保存源码和项目文档；音频、收藏数据库、缓存及导出文件由「数据与备份」中的方式单独备份。
-- 当前尚未配置远程仓库。
+- GitHub 私有仓库：[clp810/liushengjian](https://github.com/clp810/liushengjian)，默认分支为 `main`，保留各完成版本的附注标签。仓库用于保存代码，不代表应用已经部署成可在线访问的网站。
 
 查看版本记录：
 
