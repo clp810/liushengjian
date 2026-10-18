@@ -9,8 +9,6 @@ body[data-view=room] .shell,body[data-view=room] main{padding:0;margin:0;width:1
 .room-wash{position:absolute;inset:-15%;background:radial-gradient(ellipse at 22% 18%,#cab07160,transparent 65%),radial-gradient(ellipse at 84% 70%,#151111c9,transparent 80%);opacity:.8}
 .room-grain{position:absolute;inset:0;background:repeating-linear-gradient(0deg,#fff1 0 1px,transparent 1px 4px);opacity:.035;mix-blend-mode:soft-light}
 #room-view.playing .room-wash{animation:room-atmosphere 24s ease-in-out infinite alternate}
-#room-view:has([data-theme=night]) .room-backdrop{background:radial-gradient(ellipse at 20% 20%,#6d819a88,transparent 65%),#0e1820}
-#room-view:has([data-theme=forest]) .room-backdrop{background:radial-gradient(ellipse at 20% 20%,#8e9b6b88,transparent 65%),#162019}
 #room-view .listening-room,#room-view:fullscreen .listening-room,#room-view .listening-room.watching{position:absolute;inset:0;width:100%;height:100%;min-height:0;max-height:none;margin:0;padding:0;display:block;border:0;border-radius:0;box-shadow:none;background:transparent;overflow:hidden;z-index:1}
 #room-view #live-video,#room-view:fullscreen #live-video{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;border:0;border-radius:0;background:transparent}
 #room-view[data-fit=fill] #live-video{object-fit:cover}
@@ -63,3 +61,24 @@ body[data-view=room] .shell,body[data-view=room] main{padding:0;margin:0;width:1
 #room-view #room-cover{display:none!important}#room-view[data-mode=video] .room-backdrop{background:#050505}#room-view[data-mode=video] .room-backdrop>*{display:none}
 
 body[data-view=room] #toast{top:145px;bottom:auto;max-width:calc(100vw - 40px);font-size:11px}
+
+/* The selected room theme owns every light layer. Option buttons are never selectors. */
+#room-view{--room-base:#201b14;--room-tint:#bb8d4f;--room-shade:#41331f}
+#room-view[data-theme=night]{--room-base:#0b1425;--room-tint:#527db9;--room-shade:#253453}
+#room-view[data-theme=forest]{--room-base:#0e201a;--room-tint:#5f9976;--room-shade:#234637}
+#room-view .room-backdrop{background:var(--room-base)}
+#room-view .room-wash{background:radial-gradient(ellipse at 18% 25%,var(--room-tint),transparent 68%),radial-gradient(ellipse at 90% 75%,var(--room-shade),transparent 75%);opacity:.57;transition:opacity .5s}
+#room-view #room-backdrop-cover{opacity:.23;mix-blend-mode:luminosity;transition:opacity .5s}
+#room-view.no-ambient .room-wash,#room-view.no-ambient #room-backdrop-cover,#room-view.no-ambient .room-grain{opacity:0;animation:none}
+#auto-lyrics-dialog{width:min(440px,calc(100vw - 28px));max-height:86dvh;padding:28px;overflow:auto}
+#auto-lyrics-dialog .dialog-heading h2{font-size:22px}#auto-song{font-size:13px;line-height:1.8;overflow-wrap:anywhere;color:#e5ddcf;margin:14px 0}
+#auto-status{font-size:13px;line-height:1.9;color:#c3ccc8;min-height:3.8em;margin:16px 0 24px}
+.auto-activity{height:2px;background:#ffffff12;overflow:hidden;border-radius:2px;margin:20px 0}.auto-activity::after{content:'';display:block;width:35%;height:100%;background:#c8cdb4;animation:auto-progress 2s ease-in-out infinite alternate}
+#auto-lyrics-dialog .auto-actions{display:flex;gap:10px;align-items:center}#auto-lyrics-dialog .button{font-size:12px;padding:10px 16px}
+#auto-lyrics-dialog details{margin-top:22px;font-size:11px;color:#a6b2b4}#auto-lyrics-dialog summary{cursor:pointer}#auto-preference{display:flex;gap:8px;align-items:center;margin:18px 0;line-height:1.6}
+#auto-query-form{display:flex;gap:8px;margin-top:15px}#auto-query{min-width:0;flex:1;font-size:12px;padding:10px}#auto-manual{margin-top:12px}
+#auto-copy{max-height:40vh;overflow:auto;padding-top:12px}#auto-copy p{font-size:13px;line-height:1.8;color:#e2ded5;margin-bottom:18px;white-space:pre-wrap}#auto-copy small{display:block;color:#a9b0aa;margin-top:5px;font-size:12px}
+#room-lyrics-status{position:absolute;bottom:119px;left:20%;right:20%;text-align:center;color:#b6af9e;font-size:11px;z-index:4;pointer-events:none}
+@keyframes auto-progress{from{transform:translateX(-100%)}to{transform:translateX(380%)}}
+@media(max-width:560px){#auto-lyrics-dialog{padding:24px}#room-lyrics-status{bottom:100px;left:12%;right:12%}}
+@media(prefers-reduced-motion:reduce){.auto-activity::after{animation:none;width:100%;opacity:.5}}

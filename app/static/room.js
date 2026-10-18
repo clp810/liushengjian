@@ -110,7 +110,8 @@
   }
   function preview(){const offset=Number($('#lyric-offset').value);if(!Number.isFinite(offset)||Math.abs(offset)>600)return;editSettings={offset,clock:$('#lyric-clock').value,mood:$('#lyric-mood').value};if(dialogTrack===currentId){settings={...editSettings};renderLyrics(true);}clockLabel();}
   function setBusy(value){busy=value;$$('button,input,select,textarea',form).forEach(e=>e.disabled=value);if(!value){$('#lyric-anchor').disabled=!$('#lyric-anchor').options.length;$('#lyric-align-now').disabled=$('#lyric-anchor').disabled;}}
-  $('#lyrics-settings').addEventListener('click',()=>openSettings());document.addEventListener('manageLyrics',e=>openSettings(e.detail));
+  document.addEventListener('manualLyrics',e=>openSettings(e.detail));
+  document.addEventListener('openAutoLyrics',()=>togglePanel(false));
   $('#lyrics-close').addEventListener('click',()=>dialog.close());$('#lyrics-cancel').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
   dialog.addEventListener('close',()=>{if(dialog.open)return;++openToken;previewAudio.pause();settings={...defaults,...documentData?.settings};renderLyrics(true);});

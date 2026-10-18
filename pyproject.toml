@@ -1,6 +1,6 @@
 [project]
 name = "liushengjian"
-version = "0.6.0"
+version = "0.7.0"
 description = "留声间 — 收藏喜欢的版本，布置自己的听歌空间"
 requires-python = ">=3.11"
 dependencies = [

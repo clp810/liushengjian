@@ -137,7 +137,7 @@ audio.addEventListener('timeupdate',()=>{$('#current-time').textContent=time(aud
 audio.addEventListener('loadedmetadata',()=>{$('#seek').max=audio.duration;$('#total-time').textContent=time(audio.duration);});
 audio.addEventListener('play',()=>{updatePlayButton();renderLibrary();});audio.addEventListener('pause',()=>{updatePlayButton();renderLibrary();});
 audio.addEventListener('ended',()=>playNext(1,true));audio.addEventListener('error',()=>toast('播放未成功，请确认本地服务正在运行，或重新导入这个文件。'));
-function setTheme(theme){if(!['warm','night','forest'].includes(theme))theme='warm';$('.listening-room').dataset.theme=theme;$$('.theme').forEach(b=>b.classList.toggle('active',b.dataset.theme===theme));localStorage.setItem('lsj-theme',theme);}
+function setTheme(theme){if(!['warm','night','forest'].includes(theme))theme='warm';$('.listening-room').dataset.theme=theme;$('#room-view').dataset.theme=theme;$$('.theme').forEach(b=>(b.classList.toggle('active',b.dataset.theme===theme),b.setAttribute('aria-pressed',b.dataset.theme===theme)));localStorage.setItem('lsj-theme',theme);}
 $$('.theme').forEach(b=>b.addEventListener('click',()=>setTheme(b.dataset.theme)));
 setTheme(localStorage.getItem('lsj-theme')||'warm');audio.volume=Math.max(0,Math.min(1,Number(localStorage.getItem('lsj-volume')??.8)));$('#volume').value=audio.volume;
 api('/api/status').then(s=>{$('#storage-path').textContent=s.storage;if(!s.ffmpeg||!s.ffprobe)toast('需要安装 FFmpeg 才能处理音频，请查看 README 中的启动说明。');}).catch(e=>toast(e.message));

@@ -59,6 +59,7 @@ def run():
                 with sync_playwright() as p:
                     browser=p.chromium.launch(channel='chrome',headless=True)
                     context=browser.new_context(viewport={'width':1440,'height':1000})
+                    context.add_init_script("localStorage.setItem('lsj-auto-lyrics','off')")
                     page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
                     page.goto(BASE,wait_until='networkidle')
                     page.locator('.track-card').first.wait_for();assert page.locator('.track-card').count()==8

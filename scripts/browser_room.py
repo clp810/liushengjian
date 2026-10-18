@@ -28,6 +28,7 @@ def open_settings(page):
     page.mouse.move(200,200)
     if not page.locator('#room-settings-panel').is_visible(): page.locator('#room-settings-toggle').click()
     page.locator('#lyrics-settings').click()
+    page.locator('#auto-more summary').click();page.locator('#auto-manual').click()
     page.locator('#lyrics-dialog').wait_for(state='visible')
 
 
@@ -55,6 +56,7 @@ def run():
                 with sync_playwright() as p:
                     browser=p.chromium.launch(channel='chrome',headless=True)
                     context=browser.new_context(viewport={'width':1440,'height':1000})
+                    context.add_init_script("localStorage.setItem('lsj-auto-lyrics','off')")
                     page=context.new_page();page.on('pageerror',lambda e:(errors.append(str(e)),print('BROWSER ERROR:',e,flush=True)))
                     page.goto(BASE,wait_until='networkidle')
                     page.locator('.inspect-cover').click();page.locator('#focus-listen').click()
@@ -153,7 +155,7 @@ def run():
                     # Manage from a record without entering the room or changing playback.
                     page.locator('#room-back').click();page.locator('.inspect-cover').click()
                     old_id=page.evaluate('currentId');old_time=page.evaluate('audio.currentTime')
-                    page.locator('#focus-lyrics').click();page.locator('#lyrics-dialog').wait_for(state='visible')
+                    page.locator('#focus-lyrics').click();page.locator('#auto-more summary').click();page.locator('#auto-manual').click();page.locator('#lyrics-dialog').wait_for(state='visible')
                     assert page.evaluate('view')=='library' and page.evaluate('currentId')==old_id
                     page.locator('#lyrics-file').set_input_files({'name':'bilingual.lrc','mimeType':'text/plain','buffer':b'[00:10]The evening light is falling softly.\n[00:17]A song to keep inside my heart.'})
                     page.wait_for_function('() => document.querySelector("#lyrics-filename").textContent.includes("2 句")')
@@ -188,6 +190,18 @@ def run():
                     page.reload(wait_until='networkidle');page.locator('[data-view=room]').click()
                     page.wait_for_function('() => document.querySelector("#lyric-translation").textContent==="暮色轻轻落下。"')
                     assert page.evaluate('audio.paused')
+                    # All three visible theme buttons must change rendered light, not just an attribute.
+                    page.locator('#room-settings-toggle').click()
+                    gradients=[]
+                    for theme in ['warm','night','forest']:
+                        page.locator(f'.theme[data-theme={theme}]').click()
+                        gradients.append(page.locator('.room-wash').evaluate('(e)=>getComputedStyle(e).backgroundImage'))
+                    assert len(set(gradients))==3
+                    page.locator('#ambient-toggle').click()
+                    page.wait_for_function('() => getComputedStyle(document.querySelector(".room-wash")).opacity==="0"')
+                    page.locator('#ambient-toggle').click()
+                    page.wait_for_function('() => parseFloat(getComputedStyle(document.querySelector(".room-wash")).opacity)>.5')
+                    page.locator('#room-settings-toggle').click()
                     # Normal-window idle controls also hide; keyboard and pointer can bring them back.
                     page.locator('#room-play').click();page.locator('#lyric-stage').click();page.mouse.move(1,1)
                     page.wait_for_function('() => document.querySelector("#room-view").classList.contains("quiet")',timeout=6000)
@@ -197,7 +211,7 @@ def run():
                     page.mouse.move(200,200);page.locator('#room-play').click()
                     assert not errors,errors
                     browser.close()
-                report={'temporary_storage':True,'lrc_import':True,'word_timing_and_clip_clock':True,'manual_and_auto_mood':True,'offset_preview_cancel_align_save':True,'invalid_import_preserves_lyrics':True,'paused_reload':True,'video_full_viewport_and_fit':True,'ambient_from_video':True,'fullscreen_idle':True,'mobile_and_reduced_motion':True,'translations_save_sync_toggle_reload':True,'record_details_management':True,'normal_window_idle':True,'browser_errors':errors}
+                report={'temporary_storage':True,'lrc_import':True,'word_timing_and_clip_clock':True,'manual_and_auto_mood':True,'offset_preview_cancel_align_save':True,'invalid_import_preserves_lyrics':True,'paused_reload':True,'video_full_viewport_and_fit':True,'ambient_from_video':True,'fullscreen_idle':True,'mobile_and_reduced_motion':True,'translations_save_sync_toggle_reload':True,'record_details_management':True,'normal_window_idle':True,'three_themes_render_different_light':True,'audio_ambient_toggle_visible':True,'browser_errors':errors}
                 (RESULTS/'room-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
                 print('PASS: v0.6 lyrics, clocks, moods, persisted settings, video light and fullscreen',flush=True)
             finally:

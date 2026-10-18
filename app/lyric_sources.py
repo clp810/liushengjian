@@ -43,7 +43,7 @@ class LyricSources:
     def request(self, url, *, params=None, payload=None):
         try:
             with httpx.Client(timeout=15, follow_redirects=False, transport=self.transport,
-                              headers={'User-Agent': 'Liushengjian/0.6 (local lyric lookup)',
+                              headers={'User-Agent': 'Liushengjian/0.7 (local lyric lookup)',
                                        'Referer': 'https://music.163.com/' if '163.com' in url else 'https://y.qq.com/'}) as client:
                 with client.stream('POST' if payload else 'GET', url, params=params, json=payload) as response:
                     response.raise_for_status()

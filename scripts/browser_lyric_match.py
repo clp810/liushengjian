@@ -32,6 +32,7 @@ def open_match(page):
     page.mouse.move(200,200)
     page.locator('#room-settings-toggle').click()
     page.locator('#lyrics-settings').click()
+    page.locator('#auto-more summary').click();page.locator('#auto-manual').click()
     page.locator('#match-lyrics').click()
 
 
@@ -55,6 +56,7 @@ def run():
                 with sync_playwright() as p:
                     browser=p.chromium.launch(channel='chrome',headless=True)
                     page=browser.new_page(viewport={'width':1440,'height':1000});page.on('pageerror',lambda e:errors.append(str(e)))
+                    page.add_init_script("localStorage.setItem('lsj-auto-lyrics','off')")
                     # Trace only this page's alignment requests for failure diagnosis.
                     requests=[]
                     page.on('request',lambda r:requests.append(r.method+' '+r.url) if '/lyrics/alignment' in r.url else None)

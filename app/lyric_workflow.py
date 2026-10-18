@@ -124,7 +124,7 @@ class LyricWorkflow:
 
     def latest(self, tid):
         self.track(tid)
-        return next((j for j in self.store.all('lyric_jobs') if j['track_id']==tid), None)
+        return next((j for j in self.store.all('lyric_jobs') if j['track_id']==tid and j.get('kind')!='automatic'), None)
 
     def start(self, tid, body):
         track = self.track(tid)
@@ -273,6 +273,8 @@ class LyricWorkflow:
 def install_workflow(app, store):
     workflow=LyricWorkflow(store)
     app.state.lyric_workflow=workflow
+    from .automatic_lyrics import install_automatic
+    install_automatic(app,workflow)
 
     @app.post('/api/tracks/{tid}/lyrics/search')
     def search(tid: str, body: SearchRequest):
